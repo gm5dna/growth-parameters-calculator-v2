@@ -458,6 +458,37 @@ function getMphAnnotations(chartType, ageRange) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Previous measurements and bone age helpers                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Return previous measurement points for the given chart type as an
+ * array of {x, y} objects, sourced from lastResults.previous_measurements.
+ *
+ * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
+ * @returns {Array}          - Array of {x: ageYears, y: value} points.
+ */
+function getPreviousMeasurementPoints(chartType) {
+  if (typeof lastResults === 'undefined' || !lastResults || !lastResults.previous_measurements) return [];
+  return lastResults.previous_measurements
+    .filter(function(pm) { return pm[chartType] && pm[chartType].value !== undefined; })
+    .map(function(pm) { return { x: pm.age, y: pm[chartType].value }; });
+}
+
+/**
+ * Return the bone age scatter point for the height chart, or null if
+ * unavailable or outside the valid window.
+ *
+ * @returns {Object|null} - { x: boneAgeYears, y: heightCm } or null.
+ */
+function getBoneAgePoint() {
+  if (typeof lastResults === 'undefined' || !lastResults || !lastResults.bone_age_height) return null;
+  var ba = lastResults.bone_age_height;
+  if (!ba.within_window || !ba.height) return null;
+  return { x: ba.bone_age, y: ba.height };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Chart rendering                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -521,6 +552,39 @@ function renderChart(centiles, ageRange, chartType) {
     });
   }
 
+  // Add previous measurements as smaller, muted grey scatter points
+  var prevPoints = getPreviousMeasurementPoints(chartType);
+  if (prevPoints.length > 0) {
+    datasets.push({
+      type: 'scatter',
+      label: 'Previous measurements',
+      data: prevPoints,
+      pointRadius: 6,
+      pointBackgroundColor: '#9ca3af',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 1,
+      pointHoverRadius: 8,
+    });
+  }
+
+  // Add bone age diamond marker (height chart only, when within_window)
+  if (chartType === 'height') {
+    var baPoint = getBoneAgePoint();
+    if (baPoint) {
+      datasets.push({
+        type: 'scatter',
+        label: 'Bone age',
+        data: [baPoint],
+        pointRadius: 8,
+        pointBackgroundColor: '#f59e0b',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointStyle: 'rectRot',
+        pointHoverRadius: 10,
+      });
+    }
+  }
+
   // MPH annotations (height chart only, adult range)
   var annotations = getMphAnnotations(chartType, ageRange);
 
@@ -554,6 +618,28 @@ function renderChart(centiles, ageRange, chartType) {
             title: function() { return ''; },
             label: function(context) {
               var point = context.raw;
+              var datasetLabel = context.dataset.label || '';
+
+              // Bone age tooltip
+              if (datasetLabel === 'Bone age') {
+                var ba = lastResults.bone_age_height;
+                return [
+                  'Bone Age: ' + point.x.toFixed(1) + ' years',
+                  'Height: ' + point.y + ' cm',
+                  'Centile: ' + (ba && ba.centile !== null ? ba.centile.toFixed(1) + '%' : 'N/A'),
+                  'SDS: ' + (ba && ba.sds !== null ? (ba.sds >= 0 ? '+' : '') + ba.sds.toFixed(2) : 'N/A'),
+                ];
+              }
+
+              // Previous measurement tooltip
+              if (datasetLabel === 'Previous measurements') {
+                return [
+                  'Age: ' + point.x.toFixed(2) + ' years',
+                  CHART_DISPLAY_NAMES[currentChartType] + ': ' + point.y + ' ' + CHART_UNITS[currentChartType],
+                ];
+              }
+
+              // Current measurement tooltip (existing)
               var measurement = lastResults[currentChartType];
               var name = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
               var unit = CHART_UNITS[currentChartType] || '';
