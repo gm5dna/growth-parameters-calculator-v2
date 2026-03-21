@@ -248,6 +248,68 @@ class TestCalculateWithPreviousMeasurements:
         assert len(prev) == 1
 
 
+class TestCalculateWithBoneAge:
+    def test_bone_age_processed(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [
+                {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        data = response.get_json()
+        ba = data["results"]["bone_age_height"]
+        assert ba is not None
+        assert ba["bone_age"] == 7.5
+        assert ba["within_window"] is True
+        assert "centile" in ba
+        assert "sds" in ba
+
+    def test_bone_age_outside_window(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [
+                {"date": "2023-01-01", "bone_age": 7.0, "standard": "tw3"},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        ba = data["results"]["bone_age_height"]
+        assert ba["within_window"] is False
+
+    def test_bone_age_no_height(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 25.0,
+            "bone_age_assessments": [
+                {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert data["results"].get("bone_age_height") is None
+
+    def test_no_bone_age(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert data["results"].get("bone_age_height") is None
+
+
 class TestIndexEndpoint:
     def test_serves_html(self, client):
         response = client.get("/")

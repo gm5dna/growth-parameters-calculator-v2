@@ -1,12 +1,12 @@
 """Flask application — routes and orchestration."""
 import os
 import logging
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 
 from flask import Flask, render_template, request, jsonify
 from dateutil.relativedelta import relativedelta
 
-from constants import ErrorCodes, MAX_AGE_YEARS, VALID_MEASUREMENT_METHODS
+from constants import ErrorCodes, MAX_AGE_YEARS, VALID_MEASUREMENT_METHODS, BONE_AGE_WINDOW_DAYS
 from validation import (
     ValidationError,
     validate_date,
@@ -199,6 +199,47 @@ def calculate():
                 )
                 velocity["based_on_date"] = most_recent["date"]
                 results["height_velocity"] = velocity
+
+        # Process bone age assessments
+        bone_age_assessments = data.get("bone_age_assessments", [])
+        bone_age_result = None
+
+        if bone_age_assessments and height is not None:
+            for ba in bone_age_assessments:
+                try:
+                    ba_date_str = ba.get("date", "")
+                    ba_date = dt.strptime(ba_date_str, "%Y-%m-%d").date()
+                    ba_value = float(ba["bone_age"])
+                    ba_standard = ba.get("standard", "gp")
+                    days_diff = abs((measurement_date - ba_date).days)
+                    within_window = days_diff <= BONE_AGE_WINDOW_DAYS
+
+                    synthetic_birth = measurement_date - timedelta(days=ba_value * 365.25)
+                    ba_measurement = create_measurement(
+                        sex=sex,
+                        birth_date=synthetic_birth,
+                        measurement_date=measurement_date,
+                        measurement_method="height",
+                        observation_value=height,
+                        reference=reference,
+                    )
+                    ba_extracted = extract_measurement_result(ba_measurement, height)
+
+                    bone_age_result = {
+                        "bone_age": ba_value,
+                        "assessment_date": ba_date_str,
+                        "standard": ba_standard,
+                        "height": height,
+                        "centile": ba_extracted["centile"],
+                        "sds": ba_extracted["sds"],
+                        "within_window": within_window,
+                    }
+                    break
+                except Exception:
+                    continue
+
+            results["bone_age_height"] = bone_age_result
+            results["bone_age_assessments"] = bone_age_assessments
 
         results["validation_messages"] = all_warnings
 
