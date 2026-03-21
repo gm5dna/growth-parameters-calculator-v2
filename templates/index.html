@@ -15,6 +15,9 @@
         <!-- Header -->
         <header>
             <h1>Growth Parameters Calculator</h1>
+            <button type="button" class="btn-icon theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                <span class="material-symbols-outlined" id="themeIcon">dark_mode</span>
+            </button>
             <div class="mode-toggle-wrapper">
                 <label class="mode-toggle" for="modeToggle">
                     <span class="mode-label">Basic</span>
@@ -324,7 +327,17 @@
 
             <!-- Results section -->
             <section class="results" id="resultsSection" aria-live="polite" hidden>
-                <h2>Results</h2>
+                <div class="results-header">
+                    <h2>Results</h2>
+                    <div class="results-actions">
+                        <button type="button" class="btn-copy" id="copyResultsBtn" aria-label="Copy results to clipboard" title="Copy results">
+                            <span class="material-symbols-outlined" aria-hidden="true">content_copy</span> Copy
+                        </button>
+                        <button type="button" class="btn-export-pdf" id="exportPdfBtn" aria-label="Export results as PDF" title="Export PDF">
+                            <span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span> Export PDF
+                        </button>
+                    </div>
+                </div>
 
                 <!-- Validation warnings -->
                 <div class="validation-warnings" id="warningsDisplay" role="alert" hidden>
@@ -361,9 +374,14 @@
         <section class="charts-section" id="chartsSection" hidden>
             <div class="charts-header">
                 <h2>Growth Charts</h2>
-                <button type="button" class="btn-icon" id="closeChartsBtn" aria-label="Close charts">
-                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
-                </button>
+                <div class="charts-header-actions">
+                    <button type="button" class="btn-small" id="downloadChartBtn" aria-label="Download current chart as PNG" title="Download Chart">
+                        <span class="material-symbols-outlined" aria-hidden="true">download</span> Download
+                    </button>
+                    <button type="button" class="btn-icon" id="closeChartsBtn" aria-label="Close charts">
+                        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                    </button>
+                </div>
             </div>
 
             <!-- Chart type tabs -->
@@ -414,6 +432,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="{{ url_for('static', filename='validation.js') }}"></script>
+    <script src="{{ url_for('static', filename='clipboard.js') }}"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
     <script src="{{ url_for('static', filename='charts.js') }}"></script>
 

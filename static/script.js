@@ -18,6 +18,80 @@ function debounce(fn, delay) {
   };
 }
 
+function showToast(message) {
+    var toastEl = document.getElementById('toast');
+    if (!toastEl) return;
+    toastEl.textContent = message;
+    toastEl.hidden = false;
+    toastEl.classList.add('show');
+    setTimeout(function() {
+        toastEl.classList.remove('show');
+        setTimeout(function() { toastEl.hidden = true; }, 300);
+    }, 3000);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Copy & PDF export handlers                                        */
+/* ------------------------------------------------------------------ */
+
+async function handleCopyResults() {
+    if (!lastResults) return;
+    var patientInfo = {
+        sex: lastPayload ? lastPayload.sex : '',
+        reference: lastPayload ? lastPayload.reference || 'uk-who' : 'uk-who',
+    };
+    var success = await copyResultsToClipboard(lastResults, patientInfo);
+    showToast(success ? 'Results copied to clipboard' : 'Copy failed \u2014 please copy manually');
+}
+
+async function handleExportPdf() {
+    if (!lastResults || !lastPayload) return;
+    var btn = document.getElementById('exportPdfBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Generating PDF\u2026'; }
+
+    try {
+        var chartImages = typeof captureChartImages === 'function' ? await captureChartImages() : {};
+        var payload = {
+            results: lastResults,
+            patient_info: {
+                sex: lastPayload.sex,
+                birth_date: lastPayload.birth_date,
+                measurement_date: lastPayload.measurement_date,
+                reference: lastPayload.reference || 'uk-who',
+            },
+            chart_images: chartImages,
+        };
+
+        var response = await fetch('/export-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            var errData = await response.json().catch(function() { return {}; });
+            showToast(errData.error || 'PDF generation failed.');
+            return;
+        }
+
+        var blob = await response.blob();
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'growth-report-' + new Date().toISOString().split('T')[0] + '.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('PDF downloaded');
+    } catch (err) {
+        showToast('Network error. Please try again.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span> Export PDF';
+        }
+    }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Constants                                                         */
 /* ------------------------------------------------------------------ */
@@ -848,6 +922,17 @@ function resetForm() {
 /* ------------------------------------------------------------------ */
 
 function handleKeyboardShortcuts(event) {
+  // Ctrl+C or Cmd+C: copy results (when results visible and not in an input)
+  if (event.key === 'c' && (event.ctrlKey || event.metaKey)) {
+    var activeTag = document.activeElement ? document.activeElement.tagName : '';
+    var resultsVisible = resultsSection && !resultsSection.hidden;
+    if (resultsVisible && activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && activeTag !== 'SELECT') {
+        event.preventDefault();
+        handleCopyResults();
+        return;
+    }
+  }
+
   // Ctrl+Enter or Cmd+Enter: submit form
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
@@ -964,6 +1049,14 @@ document.addEventListener('DOMContentLoaded', function () {
     updateGhDisplay();
   });
 
+  // Copy, PDF export, and chart download buttons
+  var copyBtn = document.getElementById('copyResultsBtn');
+  if (copyBtn) copyBtn.addEventListener('click', handleCopyResults);
+  var pdfBtn = document.getElementById('exportPdfBtn');
+  if (pdfBtn) pdfBtn.addEventListener('click', handleExportPdf);
+  var dlChartBtn = document.getElementById('downloadChartBtn');
+  if (dlChartBtn) dlChartBtn.addEventListener('click', function() { if (typeof downloadChart === 'function') downloadChart(); });
+
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
   // Restore saved form state
@@ -995,5 +1088,8 @@ if (typeof module !== 'undefined' && module.exports) {
     addBoneAgeRow,
     getBoneAgeAssessments,
     updateGhDisplay,
+    showToast,
+    handleCopyResults,
+    handleExportPdf,
   };
 }
