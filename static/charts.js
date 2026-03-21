@@ -349,6 +349,115 @@ function destroyChart() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Centile label plugin                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Chart.js plugin that draws centile value labels at the rightmost
+ * visible point of each centile curve.
+ */
+var centileLabelPlugin = {
+  id: 'centileLabels',
+  afterDatasetsDraw: function(chart) {
+    var ctx = chart.ctx;
+    ctx.save();
+    chart.data.datasets.forEach(function(dataset, i) {
+      if (dataset.type === 'scatter' || !dataset.centileLabel) return;
+      var meta = chart.getDatasetMeta(i);
+      if (!meta.visible) return;
+      var lastPoint = meta.data[meta.data.length - 1];
+      if (!lastPoint) return;
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(dataset.centileLabel, lastPoint.x + 4, lastPoint.y);
+    });
+    ctx.restore();
+  },
+};
+
+Chart.register(centileLabelPlugin);
+
+/* ------------------------------------------------------------------ */
+/*  Measurement point helper                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Return the current measurement as a {x, y} point for plotting on
+ * the given chart type, or null if no data is available.
+ *
+ * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
+ * @returns {Object|null}    - { x: ageYears, y: measurementValue } or null.
+ */
+function getMeasurementPoint(chartType) {
+  if (typeof lastResults === 'undefined' || !lastResults) return null;
+  var measurement = lastResults[chartType];
+  if (!measurement || measurement.value === undefined) return null;
+
+  // Use corrected age if gestation correction applied, else chronological
+  var ageYears = lastResults.corrected_age_years !== undefined
+    ? lastResults.corrected_age_years
+    : lastResults.age_years;
+
+  return { x: ageYears, y: measurement.value };
+}
+
+/* ------------------------------------------------------------------ */
+/*  MPH annotations helper                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Return Chart.js annotation plugin config for the mid-parental height
+ * line and target range shading. Only applies to the height chart when
+ * MPH data exists and the age range extends to adult heights (>= 18).
+ *
+ * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
+ * @param {Object} ageRange  - { min: number, max: number } in years.
+ * @returns {Object}         - Annotation definitions, or empty object.
+ */
+function getMphAnnotations(chartType, ageRange) {
+  if (chartType !== 'height') return {};
+  if (typeof lastResults === 'undefined' || !lastResults) return {};
+  var mph = lastResults.mid_parental_height;
+  if (!mph) return {};
+  if (ageRange.max < 18) return {};
+
+  var xMin = Math.max(17, ageRange.min);
+  var xMax = ageRange.max;
+
+  return {
+    mphLine: {
+      type: 'line',
+      yMin: mph.mid_parental_height,
+      yMax: mph.mid_parental_height,
+      xMin: xMin,
+      xMax: xMax,
+      borderColor: 'rgba(124, 58, 237, 0.8)',
+      borderWidth: 2,
+      borderDash: [6, 4],
+      label: {
+        display: true,
+        content: 'MPH: ' + mph.mid_parental_height + ' cm',
+        position: 'start',
+        font: { size: 11 },
+        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        color: '#7c3aed',
+      },
+    },
+    mphRange: {
+      type: 'box',
+      xMin: xMin,
+      xMax: xMax,
+      yMin: mph.target_range_lower,
+      yMax: mph.target_range_upper,
+      backgroundColor: 'rgba(124, 58, 237, 0.08)',
+      borderWidth: 0,
+    },
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Chart rendering                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -397,6 +506,24 @@ function renderChart(centiles, ageRange, chartType) {
   var filtered = filterDataToRange(centiles, ageRange.min, ageRange.max);
   var datasets = buildCentileDatasets(filtered);
 
+  // Add the child's current measurement as a scatter point
+  var measurementPoint = getMeasurementPoint(chartType);
+  if (measurementPoint) {
+    datasets.push({
+      type: 'scatter',
+      label: 'Current measurement',
+      data: [measurementPoint],
+      pointRadius: 8,
+      pointBackgroundColor: '#2563eb',
+      pointBorderColor: '#ffffff',
+      pointBorderWidth: 2,
+      pointHoverRadius: 10,
+    });
+  }
+
+  // MPH annotations (height chart only, adult range)
+  var annotations = getMphAnnotations(chartType, ageRange);
+
   var config = {
     type: 'line',
     data: { datasets: datasets },
@@ -418,7 +545,30 @@ function renderChart(centiles, ageRange, chartType) {
       },
       plugins: {
         legend: { display: false },
-        tooltip: { enabled: false },
+        tooltip: {
+          enabled: true,
+          filter: function(tooltipItem) {
+            return tooltipItem.dataset.type === 'scatter';
+          },
+          callbacks: {
+            title: function() { return ''; },
+            label: function(context) {
+              var point = context.raw;
+              var measurement = lastResults[currentChartType];
+              var name = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
+              var unit = CHART_UNITS[currentChartType] || '';
+              return [
+                'Age: ' + point.x.toFixed(2) + ' years',
+                name + ': ' + point.y + ' ' + unit,
+                'Centile: ' + (measurement && measurement.centile !== null ? measurement.centile.toFixed(1) + '%' : 'N/A'),
+                'SDS: ' + (measurement && measurement.sds !== null ? (measurement.sds >= 0 ? '+' : '') + measurement.sds.toFixed(2) : 'N/A'),
+              ];
+            },
+          },
+        },
+        annotation: Object.keys(annotations).length > 0
+          ? { annotations: annotations }
+          : undefined,
       },
       elements: {
         point: { radius: 0 },
@@ -430,6 +580,17 @@ function renderChart(centiles, ageRange, chartType) {
   };
 
   currentChart = new Chart(canvas.getContext('2d'), config);
+
+  // Update screen reader description
+  var descEl = document.getElementById('chartDescription');
+  if (descEl && measurementPoint) {
+    var meas = lastResults[chartType];
+    descEl.textContent = CHART_DISPLAY_NAMES[chartType] + ' chart. ' +
+      'Current measurement: ' + measurementPoint.y + ' ' + CHART_UNITS[chartType] +
+      ' at age ' + measurementPoint.x.toFixed(2) + ' years.' +
+      (meas ? ' Centile: ' + (meas.centile !== null ? meas.centile.toFixed(1) + '%' : 'N/A') +
+      ', SDS: ' + (meas.sds !== null ? (meas.sds >= 0 ? '+' : '') + meas.sds.toFixed(2) : 'N/A') : '');
+  }
 }
 
 /* ------------------------------------------------------------------ */
