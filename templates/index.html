@@ -188,6 +188,69 @@
                     </label>
                 </fieldset>
 
+                <!-- Previous Measurements (advanced only) -->
+                <fieldset class="form-section advanced-only collapsible-section" id="prevMeasurementsSection">
+                    <div class="collapsible-header" id="prevMeasurementsToggle">
+                        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                        <span>Add Previous Measurement</span>
+                    </div>
+                    <div class="collapsible-content" id="prevMeasurementsContent" hidden>
+                        <div class="collapsible-title-row">
+                            <legend>Previous Measurements <span class="optional">(Optional)</span></legend>
+                            <button type="button" class="btn-icon collapsible-close" aria-label="Close section">
+                                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                            </button>
+                        </div>
+                        <table class="data-table" id="prevMeasurementsTable">
+                            <thead>
+                                <tr>
+                                    <th>Date</th><th>Height (cm)</th><th>Weight (kg)</th><th>OFC (cm)</th><th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="prevMeasurementsBody"></tbody>
+                        </table>
+                        <div class="table-actions">
+                            <button type="button" class="btn-small" id="addPrevMeasurement">
+                                <span class="material-symbols-outlined" aria-hidden="true">add</span> Add Another
+                            </button>
+                            <button type="button" class="btn-small" id="importCsvBtn">
+                                <span class="material-symbols-outlined" aria-hidden="true">upload</span> Import CSV
+                            </button>
+                            <button type="button" class="btn-small" id="exportCsvBtn">
+                                <span class="material-symbols-outlined" aria-hidden="true">download</span> Export CSV
+                            </button>
+                            <input type="file" id="csvFileInput" accept=".csv" hidden>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Bone Age Assessments (advanced only) -->
+                <fieldset class="form-section advanced-only collapsible-section" id="boneAgeSection">
+                    <div class="collapsible-header" id="boneAgeToggle">
+                        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                        <span>Add Bone Age Assessment</span>
+                    </div>
+                    <div class="collapsible-content" id="boneAgeContent" hidden>
+                        <div class="collapsible-title-row">
+                            <legend>Bone Age Assessments <span class="optional">(Optional)</span></legend>
+                            <button type="button" class="btn-icon collapsible-close" aria-label="Close section">
+                                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                            </button>
+                        </div>
+                        <table class="data-table" id="boneAgeTable">
+                            <thead>
+                                <tr><th>Assessment Date</th><th>Bone Age (years)</th><th>Standard</th><th></th></tr>
+                            </thead>
+                            <tbody id="boneAgeBody"></tbody>
+                        </table>
+                        <div class="table-actions">
+                            <button type="button" class="btn-small" id="addBoneAge">
+                                <span class="material-symbols-outlined" aria-hidden="true">add</span> Add Another
+                            </button>
+                        </div>
+                    </div>
+                </fieldset>
+
                 <!-- Parental Heights -->
                 <fieldset class="form-section">
                     <legend>Parental Heights <span class="optional">(Optional)</span></legend>
