@@ -104,6 +104,25 @@ var currentGhDose = 0;
 var currentBsa = null;
 var currentWeightKg = null;
 
+var GH_PEN_DEVICES = {
+  'norditropin-5':  { step: 0.025, min: 0.025, max: 2.0 },
+  'norditropin-10': { step: 0.05,  min: 0.05,  max: 4.0 },
+  'norditropin-15': { step: 0.1,   min: 0.1,   max: 8.0 },
+  'surepal-5':      { step: 0.1,   min: 0.1,   max: 2.4 },
+  'surepal-10':     { step: 0.1,   min: 0.1,   max: 4.8 },
+  'surepal-15':     { step: 0.1,   min: 0.1,   max: 7.2 },
+};
+
+function getSelectedPen() {
+  var sel = document.getElementById('ghPenDevice');
+  var id = sel ? sel.value : 'norditropin-5';
+  return GH_PEN_DEVICES[id] || GH_PEN_DEVICES['norditropin-5'];
+}
+
+function roundToStep(value, step) {
+  return Math.round(value / step) * step;
+}
+
 const FIELD_IDS = [
   'birthDate',
   'measurementDate',
@@ -711,9 +730,12 @@ function displayResults(results) {
     var ghCalc = document.getElementById('ghCalculator');
     if (ghCalc) {
       ghCalc.hidden = false;
-      currentGhDose = results.gh_dose.initial_daily_dose;
       if (results.bsa) currentBsa = results.bsa.value;
       if (lastPayload && lastPayload.weight) currentWeightKg = lastPayload.weight;
+      var pen = getSelectedPen();
+      currentGhDose = roundToStep(results.gh_dose.initial_daily_dose, pen.step);
+      currentGhDose = Math.min(currentGhDose, pen.max);
+      currentGhDose = Math.max(currentGhDose, pen.min);
       updateGhDisplay();
     }
   } else {
@@ -761,7 +783,7 @@ function displayWarnings(warnings) {
 
 function updateGhDisplay() {
   var valueEl = document.getElementById('ghDoseValue');
-  if (valueEl) valueEl.textContent = currentGhDose.toFixed(1);
+  if (valueEl) valueEl.textContent = currentGhDose.toFixed(3);
   var resultsDiv = document.getElementById('ghResults');
   if (!resultsDiv) return;
   var lines = [];
@@ -774,6 +796,10 @@ function updateGhDisplay() {
     lines.push('= ' + ((currentGhDose * 1000) / currentWeightKg).toFixed(1) + ' mcg/kg/day');
   }
   resultsDiv.innerHTML = lines.map(function(l) { return '<div>' + l + '</div>'; }).join('');
+  // Show pen range info
+  var pen = getSelectedPen();
+  var infoEl = document.getElementById('ghPenInfo');
+  if (infoEl) infoEl.textContent = 'Step: ' + pen.step + ' mg | Range: ' + pen.min.toFixed(3) + ' \u2013 ' + pen.max.toFixed(3) + ' mg';
 }
 
 /* ------------------------------------------------------------------ */
@@ -1076,15 +1102,28 @@ document.addEventListener('DOMContentLoaded', function () {
   var addBaBtn = document.getElementById('addBoneAge');
   if (addBaBtn) addBaBtn.addEventListener('click', function() { addBoneAgeRow(); });
 
-  // GH dose adjuster buttons
+  // GH dose adjuster buttons — pen-specific increments
   var ghIncBtn = document.getElementById('ghIncrease');
   var ghDecBtn = document.getElementById('ghDecrease');
   if (ghIncBtn) ghIncBtn.addEventListener('click', function() {
-    currentGhDose = Math.round((currentGhDose + 0.025) * 1000) / 1000;
+    var pen = getSelectedPen();
+    var next = roundToStep(currentGhDose + pen.step, pen.step);
+    currentGhDose = Math.min(next, pen.max);
     updateGhDisplay();
   });
   if (ghDecBtn) ghDecBtn.addEventListener('click', function() {
-    currentGhDose = Math.max(0, Math.round((currentGhDose - 0.025) * 1000) / 1000);
+    var pen = getSelectedPen();
+    var next = roundToStep(currentGhDose - pen.step, pen.step);
+    currentGhDose = Math.max(next, 0);
+    updateGhDisplay();
+  });
+  // Re-round dose when pen device changes
+  var ghPenSel = document.getElementById('ghPenDevice');
+  if (ghPenSel) ghPenSel.addEventListener('change', function() {
+    var pen = getSelectedPen();
+    currentGhDose = roundToStep(currentGhDose, pen.step);
+    currentGhDose = Math.min(currentGhDose, pen.max);
+    currentGhDose = Math.max(currentGhDose, pen.min);
     updateGhDisplay();
   });
 
