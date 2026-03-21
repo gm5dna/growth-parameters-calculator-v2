@@ -5,7 +5,7 @@ import logging
 from flask import Flask, render_template, request, jsonify
 from dateutil.relativedelta import relativedelta
 
-from constants import ErrorCodes, MAX_AGE_YEARS
+from constants import ErrorCodes, MAX_AGE_YEARS, VALID_MEASUREMENT_METHODS
 from validation import (
     ValidationError,
     validate_date,
@@ -23,7 +23,7 @@ from calculations import (
     should_apply_gestation_correction,
 )
 from models import create_measurement, validate_measurement_sds, extract_measurement_result
-from utils import calculate_mid_parental_height, format_error_response, format_success_response
+from utils import calculate_mid_parental_height, format_error_response, format_success_response, get_chart_data
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -167,6 +167,37 @@ def calculate():
         return jsonify(format_error_response(msg, code)), 400
     except Exception as e:
         logger.error("Calculation error: %s", str(e))
+        return jsonify(format_error_response(str(e), ErrorCodes.CALCULATION_ERROR)), 400
+
+
+@app.route("/chart-data", methods=["POST"])
+def chart_data():
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify(format_error_response(
+            "Request body must be valid JSON.", ErrorCodes.INVALID_INPUT
+        )), 400
+
+    try:
+        sex = validate_sex(data.get("sex"))
+        reference = validate_reference(data.get("reference"))
+
+        measurement_method = data.get("measurement_method")
+        if not measurement_method or measurement_method not in VALID_MEASUREMENT_METHODS:
+            raise ValidationError(
+                f"measurement_method must be one of: {', '.join(sorted(VALID_MEASUREMENT_METHODS))}.",
+                ErrorCodes.INVALID_INPUT,
+            )
+
+        centiles = get_chart_data(reference, measurement_method, sex)
+
+        return jsonify({"success": True, "centiles": centiles}), 200
+
+    except ValidationError as e:
+        return jsonify(format_error_response(e.message, e.code)), 400
+    except Exception as e:
+        logger.error("Chart data error: %s", str(e))
         return jsonify(format_error_response(str(e), ErrorCodes.CALCULATION_ERROR)), 400
 
 

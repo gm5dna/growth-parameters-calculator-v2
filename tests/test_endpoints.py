@@ -100,6 +100,69 @@ class TestCalculateEndpoint:
         assert response.status_code == 400
 
 
+class TestChartDataEndpoint:
+    def test_basic_chart_data(self, client):
+        payload = {
+            "reference": "uk-who",
+            "measurement_method": "height",
+            "sex": "male",
+        }
+        response = client.post(
+            "/chart-data",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert "centiles" in data
+        assert len(data["centiles"]) == 9
+
+    def test_chart_data_centile_structure(self, client):
+        payload = {"reference": "uk-who", "measurement_method": "weight", "sex": "female"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        centile_line = data["centiles"][0]
+        assert "centile" in centile_line
+        assert "sds" in centile_line
+        assert "data" in centile_line
+        assert len(centile_line["data"]) > 0
+        point = centile_line["data"][0]
+        assert "x" in point
+        assert "y" in point
+
+    def test_chart_data_missing_sex(self, client):
+        payload = {"reference": "uk-who", "measurement_method": "height"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+
+    def test_chart_data_missing_method(self, client):
+        payload = {"reference": "uk-who", "sex": "male"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+
+    def test_chart_data_invalid_reference(self, client):
+        payload = {"reference": "invalid", "measurement_method": "height", "sex": "male"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+
+    def test_chart_data_defaults_reference(self, client):
+        payload = {"measurement_method": "height", "sex": "male"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+
+    def test_chart_data_bmi(self, client):
+        payload = {"reference": "uk-who", "measurement_method": "bmi", "sex": "female"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        assert len(response.get_json()["centiles"]) == 9
+
+    def test_chart_data_ofc(self, client):
+        payload = {"reference": "uk-who", "measurement_method": "ofc", "sex": "male"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+
+
 class TestIndexEndpoint:
     def test_serves_html(self, client):
         response = client.get("/")
