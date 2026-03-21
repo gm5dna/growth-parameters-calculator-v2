@@ -460,12 +460,19 @@ function getMeasurementPoint(chartType) {
   var measurement = lastResults[chartType];
   if (!measurement || measurement.value === undefined) return null;
 
-  // Use corrected age if gestation correction applied, else chronological
-  var ageYears = lastResults.corrected_age_years !== undefined
-    ? lastResults.corrected_age_years
-    : lastResults.age_years;
+  // Per RCPCH guidance: plot at chronological age, then draw arrow back
+  // to corrected age to show gestational correction
+  return { x: lastResults.age_years, y: measurement.value };
+}
 
-  return { x: ageYears, y: measurement.value };
+function getCorrectedMeasurementPoint(chartType) {
+  if (typeof lastResults === 'undefined' || !lastResults) return null;
+  if (!lastResults.gestation_correction_applied) return null;
+  if (lastResults.corrected_age_years === undefined) return null;
+  var measurement = lastResults[chartType];
+  if (!measurement || measurement.value === undefined) return null;
+
+  return { x: lastResults.corrected_age_years, y: measurement.value };
 }
 
 /* ------------------------------------------------------------------ */
@@ -631,18 +638,53 @@ function renderChart(centiles, ageRange, chartType) {
   var datasets = buildCentileDatasets(filtered, colors);
 
   // Add the child's current measurement as a scatter point
+  // Per RCPCH Fact Sheet 5: plot at chronological age, draw arrow back to corrected age
   var measurementPoint = getMeasurementPoint(chartType);
+  var correctedPoint = getCorrectedMeasurementPoint(chartType);
+
   if (measurementPoint) {
-    datasets.push({
-      type: 'scatter',
-      label: 'Current measurement',
-      data: [measurementPoint],
-      pointRadius: 5,
-      pointBackgroundColor: colors.currentMarker,
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 2,
-      pointHoverRadius: 7,
-    });
+    // If preterm with correction: show arrow from chronological → corrected age
+    if (correctedPoint) {
+      // Arrow line from chronological age to corrected age
+      datasets.push({
+        type: 'line',
+        label: 'Gestation correction',
+        data: [measurementPoint, correctedPoint],
+        borderColor: colors.currentMarker,
+        borderWidth: 1.5,
+        borderDash: [4, 3],
+        pointRadius: [0, 5],  // no dot at chronological end, arrow tip at corrected
+        pointBackgroundColor: colors.currentMarker,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointStyle: ['circle', 'triangle'],
+        fill: false,
+        tension: 0,
+      });
+      // Open circle at chronological age (actual age plot)
+      datasets.push({
+        type: 'scatter',
+        label: 'Current measurement',
+        data: [measurementPoint],
+        pointRadius: 5,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: colors.currentMarker,
+        pointBorderWidth: 2,
+        pointHoverRadius: 7,
+      });
+    } else {
+      // Term baby — simple filled dot
+      datasets.push({
+        type: 'scatter',
+        label: 'Current measurement',
+        data: [measurementPoint],
+        pointRadius: 5,
+        pointBackgroundColor: colors.currentMarker,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointHoverRadius: 7,
+      });
+    }
   }
 
   // Add previous measurements as smaller, muted grey scatter points
