@@ -680,6 +680,71 @@ function renderChart(centiles, ageRange, chartType) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Chart download and capture                                        */
+/* ------------------------------------------------------------------ */
+
+function downloadChart() {
+    if (!currentChart) return;
+    var canvas = document.getElementById('growthChart');
+    if (!canvas) return;
+
+    var chartType = currentChartType || 'chart';
+    var date = new Date().toISOString().split('T')[0];
+    var filename = 'growth-chart-' + chartType + '-' + date + '.png';
+
+    // Create high-res export canvas (2x for Retina)
+    var scale = 2;
+    var exportCanvas = document.createElement('canvas');
+    exportCanvas.width = canvas.width * scale;
+    exportCanvas.height = canvas.height * scale;
+
+    var ctx = exportCanvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.drawImage(canvas, 0, 0);
+
+    // Trigger download
+    var link = document.createElement('a');
+    link.download = filename;
+    link.href = exportCanvas.toDataURL('image/png');
+    link.click();
+}
+
+async function captureChartImages() {
+    var images = {};
+    var reference = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.reference || 'uk-who' : 'uk-who';
+    var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
+    var savedType = currentChartType;
+
+    var types = ['height', 'weight', 'bmi', 'ofc'];
+    for (var i = 0; i < types.length; i++) {
+        var type = types[i];
+        try {
+            var centiles = await fetchChartData(reference, type, sex);
+            var ranges = AGE_RANGES[type] || [];
+            var ageYears = (typeof lastResults !== 'undefined' && lastResults) ? lastResults.age_years || 0 : 0;
+            var hasParentalHeights = (typeof lastResults !== 'undefined' && lastResults) ? !!lastResults.mid_parental_height : false;
+            var defaultIdx = getDefaultAgeRange(type, ageYears, hasParentalHeights);
+            var ageRange = ranges[defaultIdx] || ranges[0];
+
+            renderChart(centiles, ageRange, type);
+            var canvas = document.getElementById('growthChart');
+            if (canvas) {
+                images[type] = canvas.toDataURL('image/png');
+            }
+        } catch (e) {
+            // Skip failed charts
+        }
+    }
+
+    // Restore the chart that was showing before capture
+    if (savedType) {
+        switchChartType(savedType);
+    }
+
+    return images;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Event listeners                                                   */
 /* ------------------------------------------------------------------ */
 
