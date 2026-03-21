@@ -224,6 +224,12 @@ footer a:hover {
   }
 }
 
+.form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 /* ── Individual Form Field ────────────────────────────────── */
 .form-field {
   display: flex;

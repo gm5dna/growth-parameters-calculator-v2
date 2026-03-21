@@ -79,111 +79,61 @@
                 <!-- Date fields and measurements -->
                 <fieldset class="form-section">
                     <legend>Measurements</legend>
-                    <div class="form-grid-three">
+                    <div class="form-grid">
 
-                        <!-- Date of Birth -->
-                        <div class="form-field">
-                            <label for="birthDate">Date of Birth <span class="required" aria-hidden="true">*</span></label>
-                            <input
-                                type="date"
-                                id="birthDate"
-                                name="birth_date"
-                                required
-                                aria-label="Date of birth"
-                                aria-describedby="birthDateError"
-                            >
-                            <span class="field-error" id="birthDateError" role="alert"></span>
-                        </div>
-
-                        <!-- Measurement Date -->
-                        <div class="form-field">
-                            <label for="measurementDate">Measurement Date <span class="required" aria-hidden="true">*</span></label>
-                            <input
-                                type="date"
-                                id="measurementDate"
-                                name="measurement_date"
-                                required
-                                aria-label="Date of measurement"
-                                aria-describedby="measurementDateError"
-                            >
-                            <span class="field-error" id="measurementDateError" role="alert"></span>
-                        </div>
-
-                        <!-- Gestation (advanced only) -->
-                        <div class="form-field advanced-only">
-                            <label for="gestationWeeks">Gestation</label>
-                            <div class="gestation-inputs">
-                                <input type="number" id="gestationWeeks" name="gestation_weeks" min="22" max="44" step="1" placeholder="Wk" aria-label="Gestation weeks">
-                                <span class="unit">wk</span>
-                                <span class="gestation-separator">+</span>
-                                <input type="number" id="gestationDays" name="gestation_days" min="0" max="6" step="1" placeholder="D" aria-label="Gestation days">
-                                <span class="unit">d</span>
+                        <!-- Left column: Dates + Gestation -->
+                        <div class="form-column">
+                            <div class="form-field">
+                                <label for="birthDate">Date of Birth <span class="required" aria-hidden="true">*</span></label>
+                                <input type="date" id="birthDate" name="birth_date" required aria-label="Date of birth" aria-describedby="birthDateError">
+                                <span class="field-error" id="birthDateError" role="alert"></span>
                             </div>
-                            <span class="field-error" id="gestationError" role="alert"></span>
-                        </div>
-
-                    </div>
-
-                    <!-- Weight / Height / OFC — 3 across on desktop -->
-                    <div class="form-grid-three">
-                        <div class="form-field">
-                            <label for="weight">Weight</label>
-                            <div class="input-with-unit">
-                                <input
-                                    type="number"
-                                    id="weight"
-                                    name="weight"
-                                    step="0.01"
-                                    min="0.1"
-                                    max="300"
-                                    aria-label="Weight in kilograms"
-                                    aria-describedby="weightError"
-                                    placeholder="e.g. 14.5"
-                                >
-                                <span class="unit">kg</span>
+                            <div class="form-field">
+                                <label for="measurementDate">Measurement Date <span class="required" aria-hidden="true">*</span></label>
+                                <input type="date" id="measurementDate" name="measurement_date" required aria-label="Date of measurement" aria-describedby="measurementDateError">
+                                <span class="field-error" id="measurementDateError" role="alert"></span>
                             </div>
-                            <span class="field-error" id="weightError" role="alert"></span>
+                            <div class="form-field advanced-only">
+                                <label for="gestationWeeks">Gestation</label>
+                                <div class="gestation-inputs">
+                                    <input type="number" id="gestationWeeks" name="gestation_weeks" min="22" max="44" step="1" placeholder="Wk" aria-label="Gestation weeks">
+                                    <span class="unit">wk</span>
+                                    <span class="gestation-separator">+</span>
+                                    <input type="number" id="gestationDays" name="gestation_days" min="0" max="6" step="1" placeholder="D" aria-label="Gestation days">
+                                    <span class="unit">d</span>
+                                </div>
+                                <span class="field-error" id="gestationError" role="alert"></span>
+                            </div>
                         </div>
 
-                        <!-- Height -->
-                        <div class="form-field">
-                            <label for="height">Height / Length</label>
-                            <div class="input-with-unit">
-                                <input
-                                    type="number"
-                                    id="height"
-                                    name="height"
-                                    step="0.1"
-                                    min="10"
-                                    max="250"
-                                    aria-label="Height or length in centimetres"
-                                    aria-describedby="heightError"
-                                    placeholder="e.g. 96.0"
-                                >
-                                <span class="unit">cm</span>
+                        <!-- Right column: Measurements -->
+                        <div class="form-column">
+                            <div class="form-field">
+                                <label for="weight">Weight</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="weight" name="weight" step="0.01" min="0.1" max="300" aria-label="Weight in kilograms" aria-describedby="weightError" placeholder="e.g. 14.5">
+                                    <span class="unit">kg</span>
+                                </div>
+                                <span class="field-error" id="weightError" role="alert"></span>
                             </div>
-                            <span class="field-error" id="heightError" role="alert"></span>
+                            <div class="form-field">
+                                <label for="height">Height / Length</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="height" name="height" step="0.1" min="10" max="250" aria-label="Height or length in centimetres" aria-describedby="heightError" placeholder="e.g. 96.0">
+                                    <span class="unit">cm</span>
+                                </div>
+                                <span class="field-error" id="heightError" role="alert"></span>
+                            </div>
+                            <div class="form-field">
+                                <label for="ofc">Head Circumference (OFC)</label>
+                                <div class="input-with-unit">
+                                    <input type="number" id="ofc" name="ofc" step="0.1" min="10" max="100" aria-label="Head circumference (occipito-frontal circumference) in centimetres" aria-describedby="ofcError" placeholder="e.g. 50.0">
+                                    <span class="unit">cm</span>
+                                </div>
+                                <span class="field-error" id="ofcError" role="alert"></span>
+                            </div>
                         </div>
 
-                        <!-- Head Circumference -->
-                        <div class="form-field">
-                            <label for="ofc">Head Circumference (OFC)</label>
-                            <div class="input-with-unit">
-                                <input
-                                    type="number"
-                                    id="ofc"
-                                    name="ofc"
-                                    step="0.1"
-                                    min="10"
-                                    max="100"
-                                    aria-label="Head circumference (occipito-frontal circumference) in centimetres"
-                                    aria-describedby="ofcError"
-                                    placeholder="e.g. 50.0"
-                                >
-                                <span class="unit">cm</span>
-                            </div>
-                            <span class="field-error" id="ofcError" role="alert"></span>
-                        </div>
                     </div>
                     <p class="form-hint">At least one measurement (weight, height, or head circumference) is required.</p>
                 </fieldset>
