@@ -101,26 +101,26 @@ var currentChart = null;
 
 var AGE_RANGES = {
   height: [
-    { label: '0\u20132 years', min: -0.5, max: 2 },
-    { label: '0\u20134 years', min: -0.5, max: 4 },
-    { label: '0\u201318 years', min: -0.5, max: 18 },
+    { label: '0\u20132 years', min: 0, max: 2 },
+    { label: '0\u20134 years', min: 0, max: 4 },
+    { label: '0\u201318 years', min: 0, max: 18 },
     { label: '2\u201318 years', min: 2, max: 18 },
     { label: '8\u201320 years', min: 8, max: 20 },
   ],
   weight: [
-    { label: '0\u20132 years', min: -0.5, max: 2 },
-    { label: '0\u20134 years', min: -0.5, max: 4 },
-    { label: '0\u201318 years', min: -0.5, max: 18 },
+    { label: '0\u20132 years', min: 0, max: 2 },
+    { label: '0\u20134 years', min: 0, max: 4 },
+    { label: '0\u201318 years', min: 0, max: 18 },
     { label: '8\u201320 years', min: 8, max: 20 },
   ],
   bmi: [
-    { label: '0\u20134 years', min: -0.5, max: 4 },
+    { label: '0\u20134 years', min: 0, max: 4 },
     { label: '2\u201318 years', min: 2, max: 18 },
-    { label: '0\u201318 years', min: -0.5, max: 18 },
+    { label: '0\u201318 years', min: 0, max: 18 },
   ],
   ofc: [
-    { label: '0\u20132 years', min: -0.5, max: 2 },
-    { label: '0\u201318 years', min: -0.5, max: 18 },
+    { label: '0\u20132 years', min: 0, max: 2 },
+    { label: '0\u201318 years', min: 0, max: 18 },
   ],
 };
 
