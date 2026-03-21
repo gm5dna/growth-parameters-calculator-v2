@@ -218,7 +218,7 @@ class GrowthReportPDF:
             f"<b>Sex:</b> {sex}",
             f"<b>Date of birth:</b> {birth_date}",
             f"<b>Measurement date:</b> {measurement_date}",
-            f"<b>Age:</b> {age_str} ({age_decimal:.4f} years)"
+            f"<b>Age:</b> {age_str} ({age_decimal:.2f} years)"
             if isinstance(age_decimal, (int, float))
             else f"<b>Age:</b> {age_str}",
         ]
@@ -229,7 +229,7 @@ class GrowthReportPDF:
             corrected_str = self._format_calendar_age(corrected_cal)
             if corrected_str:
                 info_lines.append(
-                    f"<b>Corrected age:</b> {corrected_str} ({corrected_dec:.4f} years)"
+                    f"<b>Corrected age:</b> {corrected_str} ({corrected_dec:.2f} years)"
                     if isinstance(corrected_dec, (int, float))
                     else f"<b>Corrected age:</b> {corrected_str}"
                 )
@@ -250,9 +250,9 @@ class GrowthReportPDF:
             m = self.results.get(key)
             if m and isinstance(m, dict):
                 value = m.get("value", "")
-                centile = m.get("centile", "")
-                sds = m.get("sds", "")
-                measurements.append((label, f"{value} {unit}", f"{centile}", f"{sds}"))
+                centile = self._fmt_centile(m.get("centile"))
+                sds = self._fmt_sds(m.get("sds"))
+                measurements.append((label, f"{value} {unit}", centile, sds))
 
         if not measurements:
             return
@@ -312,48 +312,51 @@ class GrowthReportPDF:
 
         # Height velocity
         hv = self.results.get("height_velocity")
-        if hv and isinstance(hv, dict):
-            vel = hv.get("velocity_cm_year", "")
-            interval = hv.get("interval_days", "")
+        if hv and isinstance(hv, dict) and hv.get("value") is not None:
+            vel = self._fmt_value(hv["value"], 1)
+            based_on = hv.get("based_on_date", "")
+            suffix = f" (based on measurement from {self._format_date(based_on)})" if based_on else ""
             items.append(
-                f"\u2022 <b>Height velocity:</b> {vel} cm/year "
-                f"(over {interval} days)"
+                f"\u2022 <b>Height velocity:</b> {vel} cm/year{suffix}"
             )
 
         # Mid-parental height
         mph = self.results.get("mid_parental_height")
         if mph and isinstance(mph, dict):
-            mph_val = mph.get("mid_parental_height", "")
-            lower = mph.get("target_range_lower", "")
-            upper = mph.get("target_range_upper", "")
-            centile = mph.get("mid_parental_height_centile", "")
-            sds = mph.get("mid_parental_height_sds", "")
+            mph_val = self._fmt_value(mph.get("mid_parental_height"), 1)
+            lower = self._fmt_value(mph.get("target_range_lower"), 1)
+            upper = self._fmt_value(mph.get("target_range_upper"), 1)
+            centile = self._fmt_centile(mph.get("mid_parental_height_centile"))
+            sds = self._fmt_sds(mph.get("mid_parental_height_sds"))
             items.append(
                 f"\u2022 <b>Mid-parental height:</b> {mph_val} cm "
                 f"(target range {lower}\u2013{upper} cm, "
-                f"{centile}th centile, SDS {sds})"
+                f"centile {centile}, SDS {sds})"
             )
 
         # Bone age
         ba = self.results.get("bone_age_height")
         if ba and isinstance(ba, dict):
-            ba_val = ba.get("bone_age", "")
-            ba_std = ba.get("standard", "").upper()
-            ba_centile = ba.get("centile", "")
-            ba_sds = ba.get("sds", "")
+            ba_val = self._fmt_value(ba.get("bone_age"), 1)
+            ba_std_code = ba.get("standard", "gp")
+            ba_std = "Greulich-Pyle" if ba_std_code == "gp" else "TW3"
+            ba_centile = self._fmt_centile(ba.get("centile"))
+            ba_sds = self._fmt_sds(ba.get("sds"))
             items.append(
                 f"\u2022 <b>Bone age:</b> {ba_val} years ({ba_std}) \u2014 "
-                f"height for bone age: {ba_centile}th centile, SDS {ba_sds}"
+                f"height for bone age: centile {ba_centile}, SDS {ba_sds}"
             )
 
         # GH dose
         gh = self.results.get("gh_dose")
         if gh and isinstance(gh, dict):
-            daily = gh.get("daily_dose_mg", "")
-            weekly = gh.get("weekly_dose_mg", "")
-            items.append(
-                f"\u2022 <b>GH dose:</b> {daily} mg/day ({weekly} mg/week)"
-            )
+            daily = gh.get("initial_daily_dose")
+            if daily is not None:
+                daily_str = self._fmt_value(daily, 1)
+                weekly_str = self._fmt_value(daily * 7, 1)
+                items.append(
+                    f"\u2022 <b>GH initial dose:</b> {daily_str} mg/day ({weekly_str} mg/week)"
+                )
 
         if not items:
             return
@@ -435,12 +438,12 @@ class GrowthReportPDF:
                 age = f"{age:.2f}"
 
             ht = entry.get("height", {})
-            ht_val = ht.get("value", "") if isinstance(ht, dict) else ""
-            ht_centile = ht.get("centile", "") if isinstance(ht, dict) else ""
+            ht_val = self._fmt_value(ht.get("value"), 1) if isinstance(ht, dict) else ""
+            ht_centile = self._fmt_centile(ht.get("centile")) if isinstance(ht, dict) else ""
 
             wt = entry.get("weight", {})
-            wt_val = wt.get("value", "") if isinstance(wt, dict) else ""
-            wt_centile = wt.get("centile", "") if isinstance(wt, dict) else ""
+            wt_val = self._fmt_value(wt.get("value"), 1) if isinstance(wt, dict) else ""
+            wt_centile = self._fmt_centile(wt.get("centile")) if isinstance(wt, dict) else ""
 
             data.append([date_str, age, ht_val, ht_centile, wt_val, wt_centile])
 
@@ -475,6 +478,28 @@ class GrowthReportPDF:
         story.append(Paragraph(DISCLAIMER_TEXT, self.styles["Disclaimer"]))
 
     # --- Helpers ---
+
+    @staticmethod
+    def _fmt_centile(val):
+        """Format centile: 1dp with % suffix. e.g. 46.4%"""
+        if val is None or val == "":
+            return "N/A"
+        return f"{float(val):.1f}%"
+
+    @staticmethod
+    def _fmt_sds(val):
+        """Format SDS: 2dp with explicit sign. e.g. +0.16 or -0.39"""
+        if val is None or val == "":
+            return "N/A"
+        v = float(val)
+        return f"{v:+.2f}"
+
+    @staticmethod
+    def _fmt_value(val, dp=1):
+        """Format a numeric value to given decimal places."""
+        if val is None or val == "":
+            return ""
+        return f"{float(val):.{dp}f}"
 
     @staticmethod
     def _format_date(date_str):
