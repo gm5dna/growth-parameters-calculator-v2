@@ -9,6 +9,12 @@ from constants import (
     VALID_REFERENCES, DEFAULT_REFERENCE, VALID_SEXES,
     VALID_MEASUREMENT_METHODS,
     ErrorCodes,
+    CBNF_BSA_TABLE,
+    GH_STANDARD_DOSE_MG_M2_WEEK,
+    GH_DOSE_STEP_MG,
+    VELOCITY_MIN_INTERVAL_DAYS,
+    BONE_AGE_WINDOW_DAYS,
+    VALID_BONE_AGE_STANDARDS,
 )
 
 
@@ -68,3 +74,25 @@ def test_error_codes_exist():
     assert ErrorCodes.SDS_OUT_OF_RANGE == "ERR_008"
     assert ErrorCodes.CALCULATION_ERROR == "ERR_009"
     assert ErrorCodes.INVALID_INPUT == "ERR_010"
+
+
+def test_cbnf_bsa_table():
+    assert isinstance(CBNF_BSA_TABLE, list)
+    assert len(CBNF_BSA_TABLE) == 9
+    assert CBNF_BSA_TABLE[0] == (1, 0.10)
+    assert CBNF_BSA_TABLE[-1] == (90, 2.2)
+
+
+def test_gh_constants():
+    assert GH_STANDARD_DOSE_MG_M2_WEEK == 7.0
+    assert GH_DOSE_STEP_MG == 0.025
+
+
+def test_velocity_constants():
+    assert VELOCITY_MIN_INTERVAL_DAYS == 122
+
+
+def test_bone_age_constants():
+    assert BONE_AGE_WINDOW_DAYS == 30.44
+    assert "gp" in VALID_BONE_AGE_STANDARDS
+    assert "tw3" in VALID_BONE_AGE_STANDARDS
