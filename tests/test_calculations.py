@@ -5,6 +5,8 @@ from calculations import (
     calculate_age_in_years,
     calculate_calendar_age,
     should_apply_gestation_correction,
+    calculate_boyd_bsa,
+    calculate_cbnf_bsa,
 )
 
 
@@ -70,3 +72,45 @@ class TestShouldApplyGestationCorrection:
 
     def test_none_gestation_no_correction(self):
         assert should_apply_gestation_correction(None, 0.5) is False
+
+
+class TestCalculateBoydBsa:
+    def test_typical_child(self):
+        bsa = calculate_boyd_bsa(20.0, 110.0)
+        assert 0.7 < bsa < 0.9
+        assert isinstance(bsa, float)
+
+    def test_infant(self):
+        bsa = calculate_boyd_bsa(3.5, 50.0)
+        assert 0.1 < bsa < 0.3
+
+    def test_adolescent(self):
+        bsa = calculate_boyd_bsa(60.0, 165.0)
+        assert 1.5 < bsa < 1.8
+
+    def test_returns_two_decimal_places(self):
+        bsa = calculate_boyd_bsa(20.0, 110.0)
+        assert bsa == round(bsa, 2)
+
+
+class TestCalculateCbnfBsa:
+    def test_exact_table_value(self):
+        assert calculate_cbnf_bsa(10.0) == 0.49
+
+    def test_interpolation_between_values(self):
+        bsa = calculate_cbnf_bsa(15.0)
+        assert abs(bsa - 0.64) < 0.01
+
+    def test_minimum_weight(self):
+        assert calculate_cbnf_bsa(1.0) == 0.10
+
+    def test_below_minimum_clamps(self):
+        assert calculate_cbnf_bsa(0.5) == 0.10
+
+    def test_above_maximum_extrapolates(self):
+        bsa = calculate_cbnf_bsa(100.0)
+        assert bsa > 2.2
+
+    def test_returns_two_decimal_places(self):
+        bsa = calculate_cbnf_bsa(15.0)
+        assert bsa == round(bsa, 2)
