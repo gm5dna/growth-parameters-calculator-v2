@@ -178,6 +178,12 @@ function handleModeToggle() {
   } else {
     document.body.classList.remove('advanced-mode');
   }
+  // Highlight active mode label
+  var labels = document.querySelectorAll('.mode-label');
+  if (labels.length >= 2) {
+    labels[0].classList.toggle('active-label', !toggle.checked);
+    labels[1].classList.toggle('active-label', toggle.checked);
+  }
   debouncedSave();
 }
 
@@ -1140,6 +1146,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // Restore saved form state
   restoreFormState();
+
+  // Set initial mode label active state
+  var initLabels = document.querySelectorAll('.mode-label');
+  if (initLabels.length >= 2) {
+    var modeChecked = document.getElementById('modeToggle')?.checked;
+    initLabels[0].classList.toggle('active-label', !modeChecked);
+    initLabels[1].classList.toggle('active-label', !!modeChecked);
+  }
 });
 
 // Export for Node.js (Jest) -- no-op in browser
