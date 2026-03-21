@@ -78,6 +78,7 @@ function getChartColors() {
         gridColor: isDark ? '#374151' : '#e5e7eb',
         textColor: isDark ? '#e5e7eb' : '#374151',
         labelColor: isDark ? '#9ca3af' : '#6b7280',
+        bgColor: isDark ? '#1f2937' : '#ffffff',
     };
 }
 
@@ -404,7 +405,8 @@ var centileLabelPlugin = {
       var lastPoint = meta.data[meta.data.length - 1];
       if (!lastPoint) return;
       ctx.fillStyle = colors.labelColor;
-      ctx.font = '10px -apple-system, sans-serif';
+      var fontSize = chart.width < 500 ? 8 : 10;
+      ctx.font = fontSize + 'px -apple-system, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(dataset.centileLabel, lastPoint.x + 4, lastPoint.y);
@@ -414,6 +416,22 @@ var centileLabelPlugin = {
 };
 
 Chart.register(centileLabelPlugin);
+
+var chartBgPlugin = {
+  id: 'customCanvasBackground',
+  beforeDraw: function(chart) {
+    var bgColor = chart.config.options.plugins.customCanvasBackground?.color;
+    if (bgColor) {
+      var ctx = chart.ctx;
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, chart.width, chart.height);
+      ctx.restore();
+    }
+  },
+};
+Chart.register(chartBgPlugin);
 
 /* ------------------------------------------------------------------ */
 /*  Measurement point helper                                          */
@@ -650,6 +668,7 @@ function renderChart(centiles, ageRange, chartType) {
         },
       },
       plugins: {
+        customCanvasBackground: { color: colors.bgColor },
         legend: { display: false },
         tooltip: {
           enabled: true,

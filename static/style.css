@@ -110,8 +110,15 @@ header {
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 24px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px 12px;
+}
+
+header h1 { flex: 1; min-width: 200px; margin: 0; }
+
+@media (max-width: 480px) {
+  header h1 { flex-basis: 100%; min-width: unset; font-size: 24px; }
 }
 
 /* ── Footer ───────────────────────────────────────────────── */
@@ -690,6 +697,11 @@ input::placeholder {
   }
 }
 
+/* Very narrow phones: single column results */
+@media (max-width: 400px) {
+  .results-grid { grid-template-columns: 1fr !important; }
+}
+
 /* ── Reduced Motion ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -871,7 +883,8 @@ input::placeholder {
 
 .mode-toggle-wrapper { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 .mode-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
-.mode-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.mode-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); transition: color 0.2s; }
+.mode-label.active-label { color: var(--accent-primary); font-weight: 700; }
 .toggle-slider {
   width: 44px; height: 24px;
   background: var(--border-color);
@@ -899,7 +912,7 @@ body:not(.advanced-mode) .advanced-only { display: none; }
 /* ================================================================ */
 
 .gestation-inputs { display: flex; align-items: center; gap: 6px; }
-.gestation-inputs input { width: 70px; }
+.gestation-inputs input { width: 80px; }
 .gestation-separator { color: var(--text-secondary); font-weight: 600; }
 
 /* ================================================================ */
