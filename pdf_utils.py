@@ -45,7 +45,11 @@ DISCLAIMER_TEXT = (
 
 
 class NumberedCanvas(BaseCanvas):
-    """Canvas subclass that draws 'Page X of Y' footers using two-pass technique."""
+    """Canvas subclass that draws 'Page X of Y' footers using two-pass technique.
+
+    First pass: showPage() saves each page's state instead of emitting it.
+    Second pass: save() replays all pages, adds the footer, then emits them.
+    """
 
     def __init__(self, *args, **kwargs):
         BaseCanvas.__init__(self, *args, **kwargs)
@@ -53,7 +57,7 @@ class NumberedCanvas(BaseCanvas):
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
-        BaseCanvas.showPage(self)
+        self._startPage()  # reset canvas state for next page without emitting
 
     def save(self):
         num_pages = len(self._saved_page_states)
