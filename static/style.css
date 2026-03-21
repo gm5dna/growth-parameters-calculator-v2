@@ -964,3 +964,29 @@ select {
 .gh-dose-unit { font-size: 14px; color: var(--text-secondary); }
 .gh-results { font-size: 14px; color: var(--text-secondary); }
 .gh-results div { margin-bottom: 4px; }
+
+/* ================================================================ */
+/*  Results header with export buttons                               */
+/* ================================================================ */
+
+.results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+.results-header h2 { margin: 0; }
+.results-actions { display: flex; gap: 8px; }
+
+/* Export buttons */
+.btn-copy, .btn-export-pdf {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: 6px; font-size: 14px;
+    cursor: pointer; transition: background 0.15s; border: none;
+}
+.btn-copy { background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); }
+.btn-copy:hover { background: var(--border-color); }
+.btn-export-pdf { background: var(--accent-primary); color: white; }
+.btn-export-pdf:hover { opacity: 0.9; }
+.btn-export-pdf:disabled { opacity: 0.6; cursor: wait; }
+
+/* Charts header actions */
+.charts-header-actions { display: flex; align-items: center; gap: 8px; }
+
+/* Theme toggle */
+.theme-toggle { margin-right: 8px; }
