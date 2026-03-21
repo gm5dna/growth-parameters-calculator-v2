@@ -1146,6 +1146,12 @@ document.addEventListener('DOMContentLoaded', function () {
   // Restore saved form state
   restoreFormState();
 
+  // Default measurement date to today if not already set
+  var measDateEl = document.getElementById('measurementDate');
+  if (measDateEl && !measDateEl.value) {
+    measDateEl.value = new Date().toISOString().split('T')[0];
+  }
+
   // Set initial mode label active state
   var initLabels = document.querySelectorAll('.mode-label');
   if (initLabels.length >= 2) {
