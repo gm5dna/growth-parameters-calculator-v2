@@ -787,8 +787,9 @@ function updateGhDisplay() {
   var resultsDiv = document.getElementById('ghResults');
   if (!resultsDiv) return;
   var lines = [];
-  var mgWeek = (currentGhDose * 7).toFixed(1);
-  lines.push('= ' + mgWeek + ' mg/week');
+  if (currentWeightKg) {
+    lines.push('= ' + (currentGhDose / currentWeightKg).toFixed(3) + ' mg/kg/day');
+  }
   if (currentBsa) {
     lines.push('= ' + ((currentGhDose * 7) / currentBsa).toFixed(1) + ' mg/m\u00B2/week');
   }
