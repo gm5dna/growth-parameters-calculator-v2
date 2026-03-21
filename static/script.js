@@ -163,6 +163,40 @@ function handleModeToggle() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Theme toggle (dark mode)                                          */
+/* ------------------------------------------------------------------ */
+
+function initTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem('growthCalcTheme'); } catch(e) {}
+    if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    updateThemeIcon();
+}
+
+function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-theme');
+    var next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('growthCalcTheme', next); } catch(e) {}
+    updateThemeIcon();
+    // Re-render chart if visible to pick up new colours
+    if (typeof currentChart !== 'undefined' && currentChart && typeof loadAndRenderChart === 'function') {
+        loadAndRenderChart();
+    }
+}
+
+function updateThemeIcon() {
+    var icon = document.getElementById('themeIcon');
+    if (!icon) return;
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    icon.textContent = isDark ? 'light_mode' : 'dark_mode';
+}
+
+/* ------------------------------------------------------------------ */
 /*  Previous Measurements — table row management                      */
 /* ------------------------------------------------------------------ */
 
@@ -966,6 +1000,11 @@ document.addEventListener('DOMContentLoaded', function () {
   dismissDisclaimerBtn = document.getElementById('dismissDisclaimer');
   toast = document.getElementById('toast');
 
+  // Initialise theme (before restoreFormState)
+  initTheme();
+  var themeBtn = document.getElementById('themeToggle');
+  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+
   // Event listeners
   if (form) {
     form.addEventListener('submit', handleSubmit);
@@ -1091,5 +1130,8 @@ if (typeof module !== 'undefined' && module.exports) {
     showToast,
     handleCopyResults,
     handleExportPdf,
+    initTheme,
+    toggleTheme,
+    updateThemeIcon,
   };
 }

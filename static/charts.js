@@ -47,6 +47,41 @@ var CHART_DISPLAY_NAMES = {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Theme-aware chart colours                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Convert a hex colour string to comma-separated RGB components.
+ *
+ * @param {string} hex - Hex colour, e.g. "#6b7280".
+ * @returns {string}   - "r, g, b" string for use in rgba().
+ */
+function hexToRgb(hex) {
+    var r = parseInt(hex.slice(1, 3), 16);
+    var g = parseInt(hex.slice(3, 5), 16);
+    var b = parseInt(hex.slice(5, 7), 16);
+    return r + ', ' + g + ', ' + b;
+}
+
+/**
+ * Return chart colour palette appropriate for the current theme.
+ *
+ * @returns {Object} - Colour values keyed by role.
+ */
+function getChartColors() {
+    var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    return {
+        centileLine: isDark ? '#9ca3af' : '#6b7280',
+        median: isDark ? '#60a5fa' : '#1e40af',
+        currentMarker: isDark ? '#3b82f6' : '#2563eb',
+        previousMarker: isDark ? '#6b7280' : '#9ca3af',
+        gridColor: isDark ? '#374151' : '#e5e7eb',
+        textColor: isDark ? '#e5e7eb' : '#374151',
+        labelColor: isDark ? '#9ca3af' : '#6b7280',
+    };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Chart data cache                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -359,6 +394,7 @@ function destroyChart() {
 var centileLabelPlugin = {
   id: 'centileLabels',
   afterDatasetsDraw: function(chart) {
+    var colors = getChartColors();
     var ctx = chart.ctx;
     ctx.save();
     chart.data.datasets.forEach(function(dataset, i) {
@@ -367,7 +403,7 @@ var centileLabelPlugin = {
       if (!meta.visible) return;
       var lastPoint = meta.data[meta.data.length - 1];
       if (!lastPoint) return;
-      ctx.fillStyle = '#6b7280';
+      ctx.fillStyle = colors.labelColor;
       ctx.font = '10px -apple-system, sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -494,18 +530,19 @@ function getBoneAgePoint() {
 
 /**
  * Build datasets from centile data, applying the graduated styling
- * defined in CENTILE_STYLES.
+ * defined in CENTILE_STYLES and theme-aware colours.
  *
- * @param {Array} centiles - Filtered centile array.
- * @returns {Array}        - Chart.js dataset objects.
+ * @param {Array}  centiles - Filtered centile array.
+ * @param {Object} colors   - Chart colour palette from getChartColors().
+ * @returns {Array}          - Chart.js dataset objects.
  */
-function buildCentileDatasets(centiles) {
+function buildCentileDatasets(centiles, colors) {
   return centiles.map(function (centile) {
     var style = CENTILE_STYLES[centile.centile] || { width: 1, opacity: 0.3 };
     var borderColor =
       centile.centile === 50
-        ? '#1e40af'
-        : 'rgba(107, 114, 128, ' + style.opacity + ')';
+        ? colors.median
+        : 'rgba(' + hexToRgb(colors.centileLine) + ', ' + style.opacity + ')';
 
     return {
       label: 'Centile ' + centile.centile,
@@ -534,8 +571,9 @@ function renderChart(centiles, ageRange, chartType) {
   var canvas = document.getElementById('growthChart');
   if (!canvas) return;
 
+  var colors = getChartColors();
   var filtered = filterDataToRange(centiles, ageRange.min, ageRange.max);
-  var datasets = buildCentileDatasets(filtered);
+  var datasets = buildCentileDatasets(filtered, colors);
 
   // Add the child's current measurement as a scatter point
   var measurementPoint = getMeasurementPoint(chartType);
@@ -545,7 +583,7 @@ function renderChart(centiles, ageRange, chartType) {
       label: 'Current measurement',
       data: [measurementPoint],
       pointRadius: 8,
-      pointBackgroundColor: '#2563eb',
+      pointBackgroundColor: colors.currentMarker,
       pointBorderColor: '#ffffff',
       pointBorderWidth: 2,
       pointHoverRadius: 10,
@@ -560,7 +598,7 @@ function renderChart(centiles, ageRange, chartType) {
       label: 'Previous measurements',
       data: prevPoints,
       pointRadius: 6,
-      pointBackgroundColor: '#9ca3af',
+      pointBackgroundColor: colors.previousMarker,
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1,
       pointHoverRadius: 8,
@@ -598,13 +636,17 @@ function renderChart(centiles, ageRange, chartType) {
       scales: {
         x: {
           type: 'linear',
-          title: { display: true, text: 'Age (years)' },
+          title: { display: true, text: 'Age (years)', color: colors.textColor },
           min: ageRange.min,
           max: ageRange.max,
+          grid: { color: colors.gridColor },
+          ticks: { color: colors.textColor },
         },
         y: {
           type: 'linear',
-          title: { display: true, text: Y_AXIS_LABELS[chartType] || '' },
+          title: { display: true, text: Y_AXIS_LABELS[chartType] || '', color: colors.textColor },
+          grid: { color: colors.gridColor },
+          ticks: { color: colors.textColor },
         },
       },
       plugins: {
