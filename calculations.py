@@ -3,7 +3,7 @@ import math
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
-from constants import PRETERM_THRESHOLD_WEEKS, CBNF_BSA_TABLE
+from constants import PRETERM_THRESHOLD_WEEKS, CBNF_BSA_TABLE, VELOCITY_MIN_INTERVAL_DAYS, GH_STANDARD_DOSE_MG_M2_WEEK
 
 
 def calculate_age_in_years(birth_date, measurement_date):
@@ -74,3 +74,62 @@ def calculate_cbnf_bsa(weight_kg):
             return round(b1 + fraction * (b2 - b1), 2)
 
     return table[-1][1]
+
+
+def calculate_height_velocity(current_height, previous_height, interval_days):
+    """Calculate height velocity in cm/year.
+
+    Returns dict with 'value' (float or None) and 'message' (str or None).
+    """
+    if current_height is None or previous_height is None:
+        return {
+            "value": None,
+            "message": "Height velocity requires a previous height measurement." if previous_height is None and current_height is not None else None,
+        }
+
+    if interval_days < VELOCITY_MIN_INTERVAL_DAYS:
+        months = round(interval_days / 30.44, 1)
+        return {
+            "value": None,
+            "message": f"Height velocity requires at least 4 months between measurements (current interval: {months} months).",
+        }
+
+    height_diff = current_height - previous_height
+    velocity = (height_diff / interval_days) * 365.25
+    return {
+        "value": round(velocity, 1),
+        "message": None,
+    }
+
+
+def calculate_gh_dose(daily_dose_mg, bsa, weight_kg):
+    """Calculate GH dose in multiple formats.
+
+    If daily_dose_mg is None, calculates initial dose from standard (7 mg/m2/week).
+    """
+    result = {
+        "mg_per_day": None,
+        "mg_per_week": None,
+        "mg_m2_week": None,
+        "mcg_kg_day": None,
+        "initial_daily_dose": None,
+    }
+
+    if daily_dose_mg is None and bsa is not None:
+        initial = (GH_STANDARD_DOSE_MG_M2_WEEK * bsa) / 7
+        result["initial_daily_dose"] = round(initial, 1)
+        return result
+
+    if daily_dose_mg is None:
+        return result
+
+    result["mg_per_day"] = daily_dose_mg
+    result["mg_per_week"] = round(daily_dose_mg * 7, 2)
+
+    if bsa is not None:
+        result["mg_m2_week"] = round((daily_dose_mg * 7) / bsa, 1)
+
+    if weight_kg is not None:
+        result["mcg_kg_day"] = round((daily_dose_mg * 1000) / weight_kg, 1)
+
+    return result
