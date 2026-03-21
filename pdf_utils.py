@@ -389,8 +389,7 @@ class GrowthReportPDF:
         if not self.chart_images:
             return
 
-        story.append(Paragraph("Growth Charts", self.styles["SectionTitle"]))
-
+        first_chart = True
         for chart_name, data_url in self.chart_images.items():
             try:
                 # Parse data URL: "data:image/png;base64,..."
@@ -410,12 +409,15 @@ class GrowthReportPDF:
                 )
                 chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
                 label = chart_labels.get(chart_name, chart_name.capitalize())
-                story.append(KeepTogether([
-                    Paragraph(f"<b>{label}</b>", self.styles["Normal"]),
-                    Spacer(1, 4),
-                    img,
-                    Spacer(1, 12),
-                ]))
+                block = []
+                if first_chart:
+                    block.append(Paragraph("Growth Charts", self.styles["SectionTitle"]))
+                    first_chart = False
+                block.append(Paragraph(f"<b>{label}</b>", self.styles["Normal"]))
+                block.append(Spacer(1, 4))
+                block.append(img)
+                block.append(Spacer(1, 12))
+                story.append(KeepTogether(block))
             except Exception:
                 # Skip charts that fail to decode
                 continue
