@@ -477,13 +477,12 @@ function getMphAnnotations(chartType, ageRange) {
   if (!mph) return {};
   if (ageRange.max < 18) return {};
 
-  // Position MPH marker in the middle of the visible adult range,
-  // keeping it away from centile labels on the right edge
+  // MPH represents predicted adult height — draw it at the right end of
+  // the chart where the centile curves reach adult values. The line extends
+  // to the chart edge; the label sits to the left of the centile labels.
   var ageSpan = ageRange.max - ageRange.min;
-  var mphXStart = ageRange.max - ageSpan * 0.25; // start at 75% of x-axis
-  var mphXEnd = ageRange.max - ageSpan * 0.05;   // end just before right edge
-  // Label at the left end of the MPH line where there's space
-  var labelX = mphXStart + ageSpan * 0.01;
+  var mphXStart = ageRange.max - ageSpan * 0.2; // start at 80% of x-axis
+  var mphXEnd = ageRange.max;                    // extend to right edge
 
   return {
     mphLine: {
