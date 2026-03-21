@@ -212,6 +212,18 @@ footer a:hover {
   }
 }
 
+.form-grid-three {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 769px) {
+  .form-grid-three {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
 /* ── Individual Form Field ────────────────────────────────── */
 .form-field {
   display: flex;
