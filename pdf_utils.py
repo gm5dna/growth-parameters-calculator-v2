@@ -407,7 +407,8 @@ class GrowthReportPDF:
                     height=10 * cm,
                     kind="proportional",
                 )
-                label = chart_name.replace("_", " ").capitalize()
+                chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
+                label = chart_labels.get(chart_name, chart_name.capitalize())
                 story.append(Paragraph(f"<b>{label}</b>", self.styles["Normal"]))
                 story.append(Spacer(1, 4))
                 story.append(img)
