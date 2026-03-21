@@ -15,6 +15,14 @@
         <!-- Header -->
         <header>
             <h1>Growth Parameters Calculator</h1>
+            <div class="mode-toggle-wrapper">
+                <label class="mode-toggle" for="modeToggle">
+                    <span class="mode-label">Basic</span>
+                    <input type="checkbox" id="modeToggle" aria-label="Toggle advanced mode">
+                    <span class="toggle-slider"></span>
+                    <span class="mode-label">Advanced</span>
+                </label>
+            </div>
         </header>
 
         <!-- Disclaimer banner -->
@@ -49,6 +57,17 @@
                         </label>
                     </div>
                     <span class="field-error" id="sexError" role="alert"></span>
+                </fieldset>
+
+                <!-- Growth Reference (advanced only) -->
+                <fieldset class="form-section advanced-only">
+                    <legend>Growth Reference</legend>
+                    <select id="reference" name="reference" aria-label="Growth reference">
+                        <option value="uk-who" selected>UK-WHO</option>
+                        <option value="turners-syndrome">Turner Syndrome</option>
+                        <option value="trisomy-21">Trisomy 21</option>
+                        <option value="cdc">CDC (US)</option>
+                    </select>
                 </fieldset>
 
                 <!-- Date fields and measurements -->
@@ -144,8 +163,29 @@
                             <span class="field-error" id="ofcError" role="alert"></span>
                         </div>
 
+                        <!-- Gestation (advanced only) -->
+                        <div class="form-field advanced-only">
+                            <label for="gestationWeeks">Gestation</label>
+                            <div class="gestation-inputs">
+                                <input type="number" id="gestationWeeks" name="gestation_weeks" min="22" max="44" step="1" placeholder="Weeks" aria-label="Gestation weeks">
+                                <span class="unit">wk</span>
+                                <span class="gestation-separator">+</span>
+                                <input type="number" id="gestationDays" name="gestation_days" min="0" max="6" step="1" placeholder="Days" aria-label="Gestation days">
+                                <span class="unit">d</span>
+                            </div>
+                            <span class="field-error" id="gestationError" role="alert"></span>
+                        </div>
+
                     </div>
                     <p class="form-hint">At least one measurement (weight, height, or head circumference) is required.</p>
+                </fieldset>
+
+                <!-- GH Treatment (advanced only) -->
+                <fieldset class="form-section advanced-only">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="ghTreatment" name="gh_treatment">
+                        <span>Child is on growth hormone treatment</span>
+                    </label>
                 </fieldset>
 
                 <!-- Parental Heights -->
@@ -235,6 +275,49 @@
 
         </main>
 
+        <!-- Show Charts button (appears after calculation) -->
+        <button type="button" class="btn-show-charts" id="showChartsBtn" hidden>
+            <span class="material-symbols-outlined" aria-hidden="true">show_chart</span>
+            Show Growth Charts
+        </button>
+
+        <!-- Charts section -->
+        <section class="charts-section" id="chartsSection" hidden>
+            <div class="charts-header">
+                <h2>Growth Charts</h2>
+                <button type="button" class="btn-icon" id="closeChartsBtn" aria-label="Close charts">
+                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+            </div>
+
+            <!-- Chart type tabs -->
+            <div class="chart-tabs" role="tablist" aria-label="Chart type">
+                <button type="button" class="chart-tab active" role="tab" data-chart="height" aria-selected="true">Height</button>
+                <button type="button" class="chart-tab" role="tab" data-chart="weight" aria-selected="false">Weight</button>
+                <button type="button" class="chart-tab" role="tab" data-chart="bmi" aria-selected="false">BMI</button>
+                <button type="button" class="chart-tab" role="tab" data-chart="ofc" aria-selected="false">OFC</button>
+            </div>
+
+            <!-- Age range selector -->
+            <div class="age-range-selector" id="ageRangeSelector" role="radiogroup" aria-label="Age range">
+                <!-- Populated dynamically by charts.js -->
+            </div>
+
+            <!-- Chart loading indicator -->
+            <div class="chart-loading" id="chartLoading" hidden>
+                <div class="spinner"></div>
+                <p>Loading chart data...</p>
+            </div>
+
+            <!-- Chart canvas -->
+            <div class="chart-container">
+                <canvas id="growthChart" aria-label="Growth chart" role="img"></canvas>
+            </div>
+
+            <!-- Screen reader description -->
+            <div id="chartDescription" class="sr-only" aria-live="polite"></div>
+        </section>
+
         <!-- Toast notification -->
         <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -252,8 +335,11 @@
 
     </div><!-- /.container -->
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3/dist/chartjs-plugin-annotation.min.js"></script>
     <script src="{{ url_for('static', filename='validation.js') }}"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script src="{{ url_for('static', filename='charts.js') }}"></script>
 
 </body>
 </html>
