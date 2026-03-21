@@ -35,6 +35,9 @@ const FIELD_IDS = [
   'ofc',
   'maternalHeight',
   'paternalHeight',
+  'gestationWeeks',
+  'gestationDays',
+  'reference',
 ];
 
 const MEASUREMENT_UNITS = {
@@ -69,6 +72,20 @@ let form,
   toast;
 
 /* ------------------------------------------------------------------ */
+/*  Mode toggle                                                       */
+/* ------------------------------------------------------------------ */
+
+function handleModeToggle() {
+  var toggle = document.getElementById('modeToggle');
+  if (toggle && toggle.checked) {
+    document.body.classList.add('advanced-mode');
+  } else {
+    document.body.classList.remove('advanced-mode');
+  }
+  debouncedSave();
+}
+
+/* ------------------------------------------------------------------ */
 /*  Form data gathering                                               */
 /* ------------------------------------------------------------------ */
 
@@ -93,6 +110,18 @@ function gatherFormData() {
 
   const paternalHeight = document.getElementById('paternalHeight').value;
   if (paternalHeight) payload.paternal_height = parseFloat(paternalHeight);
+
+  const gestWeeks = document.getElementById('gestationWeeks')?.value;
+  if (gestWeeks) payload.gestation_weeks = parseInt(gestWeeks);
+
+  const gestDays = document.getElementById('gestationDays')?.value;
+  if (gestDays) payload.gestation_days = parseInt(gestDays);
+
+  const reference = document.getElementById('reference')?.value;
+  if (reference) payload.reference = reference;
+
+  const ghTreatment = document.getElementById('ghTreatment')?.checked;
+  if (ghTreatment) payload.gh_treatment = true;
 
   return payload;
 }
@@ -438,6 +467,12 @@ function saveFormState() {
     if (el) state[id] = el.value;
   });
 
+  var ghCheck = document.getElementById('ghTreatment');
+  if (ghCheck) state.ghTreatment = ghCheck.checked;
+
+  var modeCheck = document.getElementById('modeToggle');
+  if (modeCheck) state.advancedMode = modeCheck.checked;
+
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (_) {
@@ -473,6 +508,18 @@ function restoreFormState() {
       if (el) el.value = state[id];
     }
   });
+
+  // Restore GH treatment checkbox
+  if (state.ghTreatment) {
+    var ghEl = document.getElementById('ghTreatment');
+    if (ghEl) ghEl.checked = true;
+  }
+
+  // Restore advanced mode toggle
+  if (state.advancedMode) {
+    var modeEl = document.getElementById('modeToggle');
+    if (modeEl) { modeEl.checked = true; handleModeToggle(); }
+  }
 }
 
 const debouncedSave = debounce(saveFormState, 500);
@@ -499,6 +546,19 @@ function resetForm() {
   if (warningsDisplay) warningsDisplay.setAttribute('hidden', '');
   if (warningsList) warningsList.innerHTML = '';
   if (resultsGrid) resultsGrid.innerHTML = '';
+
+  // Reset advanced mode toggle
+  document.body.classList.remove('advanced-mode');
+  var modeToggle = document.getElementById('modeToggle');
+  if (modeToggle) modeToggle.checked = false;
+
+  // Reset GH treatment checkbox
+  var ghCheck = document.getElementById('ghTreatment');
+  if (ghCheck) ghCheck.checked = false;
+
+  // Hide GH calculator if visible
+  var ghCalc = document.getElementById('ghCalculator');
+  if (ghCalc) ghCalc.hidden = true;
 
   // Hide chart section
   lastResults = null;
@@ -562,6 +622,9 @@ document.addEventListener('DOMContentLoaded', function () {
     dismissDisclaimerBtn.addEventListener('click', dismissDisclaimer);
   }
 
+  var modeToggle = document.getElementById('modeToggle');
+  if (modeToggle) modeToggle.addEventListener('change', handleModeToggle);
+
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
   // Restore saved form state
@@ -584,5 +647,6 @@ if (typeof module !== 'undefined' && module.exports) {
     dismissDisclaimer,
     displayResults,
     handleSubmit,
+    handleModeToggle,
   };
 }
