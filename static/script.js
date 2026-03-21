@@ -100,6 +100,7 @@ const STORAGE_KEY = 'growthCalculatorFormState';
 
 var lastResults = null;
 var lastPayload = null;
+var autoCalcInProgress = false;
 var currentGhDose = 0;
 var currentBsa = null;
 var currentWeightKg = null;
@@ -765,8 +766,16 @@ function displayResults(results) {
   // Show results section
   resultsSection.removeAttribute('hidden');
 
-  // Scroll results into view
-  resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // Re-render charts if already visible
+  var chartsSection = document.getElementById('chartsSection');
+  if (chartsSection && !chartsSection.hidden && typeof loadAndRenderChart === 'function') {
+    loadAndRenderChart();
+  }
+
+  // Scroll results into view (only on manual submit, not auto-calc)
+  if (!autoCalcInProgress) {
+    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 function displayWarnings(warnings) {
@@ -914,6 +923,30 @@ function restoreFormState() {
 const debouncedSave = debounce(saveFormState, 500);
 
 /* ------------------------------------------------------------------ */
+/*  Auto-calculate on form change                                      */
+/* ------------------------------------------------------------------ */
+
+function autoCalculate() {
+  // Only auto-calculate if minimum required fields are filled
+  var sex = document.querySelector('input[name="sex"]:checked');
+  var dob = document.getElementById('birthDate')?.value;
+  var measDate = document.getElementById('measurementDate')?.value;
+  var weight = document.getElementById('weight')?.value;
+  var height = document.getElementById('height')?.value;
+  var ofc = document.getElementById('ofc')?.value;
+
+  if (!sex || !dob || !measDate) return;
+  if (!weight && !height && !ofc) return;
+
+  // Flag to prevent scrolling on auto-calc
+  autoCalcInProgress = true;
+  if (form) form.requestSubmit();
+  setTimeout(function() { autoCalcInProgress = false; }, 100);
+}
+
+var debouncedAutoCalc = debounce(autoCalculate, 800);
+
+/* ------------------------------------------------------------------ */
 /*  Reset                                                             */
 /* ------------------------------------------------------------------ */
 
@@ -1040,8 +1073,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // Event listeners
   if (form) {
     form.addEventListener('submit', handleSubmit);
-    form.addEventListener('input', debouncedSave);
-    form.addEventListener('change', debouncedSave);
+    form.addEventListener('input', function() { debouncedSave(); debouncedAutoCalc(); });
+    form.addEventListener('change', function() { debouncedSave(); debouncedAutoCalc(); });
   }
 
   if (resetBtn) {
