@@ -477,16 +477,21 @@ function getMphAnnotations(chartType, ageRange) {
   if (!mph) return {};
   if (ageRange.max < 18) return {};
 
-  var xMin = Math.max(17, ageRange.min);
-  var xMax = ageRange.max;
+  // Position MPH marker in the middle of the visible adult range,
+  // keeping it away from centile labels on the right edge
+  var ageSpan = ageRange.max - ageRange.min;
+  var mphXStart = ageRange.max - ageSpan * 0.25; // start at 75% of x-axis
+  var mphXEnd = ageRange.max - ageSpan * 0.05;   // end just before right edge
+  // Label at the left end of the MPH line where there's space
+  var labelX = mphXStart + ageSpan * 0.01;
 
   return {
     mphLine: {
       type: 'line',
       yMin: mph.mid_parental_height,
       yMax: mph.mid_parental_height,
-      xMin: xMin,
-      xMax: xMax,
+      xMin: mphXStart,
+      xMax: mphXEnd,
       borderColor: 'rgba(124, 58, 237, 0.8)',
       borderWidth: 2,
       borderDash: [6, 4],
@@ -494,19 +499,41 @@ function getMphAnnotations(chartType, ageRange) {
         display: true,
         content: 'MPH: ' + mph.mid_parental_height + ' cm',
         position: 'start',
-        font: { size: 11 },
-        backgroundColor: 'rgba(124, 58, 237, 0.1)',
+        font: { size: 10, weight: 'bold' },
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
         color: '#7c3aed',
+        padding: { top: 2, bottom: 2, left: 4, right: 4 },
+        yAdjust: -14,
       },
     },
     mphRange: {
       type: 'box',
-      xMin: xMin,
-      xMax: xMax,
+      xMin: mphXStart,
+      xMax: mphXEnd,
       yMin: mph.target_range_lower,
       yMax: mph.target_range_upper,
-      backgroundColor: 'rgba(124, 58, 237, 0.08)',
+      backgroundColor: 'rgba(124, 58, 237, 0.06)',
       borderWidth: 0,
+    },
+    mphUpper: {
+      type: 'line',
+      yMin: mph.target_range_upper,
+      yMax: mph.target_range_upper,
+      xMin: mphXStart,
+      xMax: mphXEnd,
+      borderColor: 'rgba(124, 58, 237, 0.3)',
+      borderWidth: 1,
+      borderDash: [3, 3],
+    },
+    mphLower: {
+      type: 'line',
+      yMin: mph.target_range_lower,
+      yMax: mph.target_range_lower,
+      xMin: mphXStart,
+      xMax: mphXEnd,
+      borderColor: 'rgba(124, 58, 237, 0.3)',
+      borderWidth: 1,
+      borderDash: [3, 3],
     },
   };
 }
