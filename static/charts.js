@@ -783,6 +783,18 @@ function renderChart(centiles, ageRange, chartType) {
 
 function downloadChart() {
     if (!currentChart) return;
+
+    // Force light mode for export
+    var savedTheme = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'light');
+
+    // Re-render in light mode
+    var ranges = AGE_RANGES[currentChartType] || [];
+    var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
+    var cacheKey = (typeof lastPayload !== 'undefined' && lastPayload ? lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (typeof lastPayload !== 'undefined' && lastPayload ? lastPayload.sex : 'male');
+    var centiles = chartDataCache[cacheKey];
+    if (centiles) renderChart(centiles, ageRange, currentChartType);
+
     var canvas = document.getElementById('growthChart');
     if (!canvas) return;
 
@@ -805,6 +817,14 @@ function downloadChart() {
     link.download = filename;
     link.href = exportCanvas.toDataURL('image/png');
     link.click();
+
+    // Restore original theme
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+    }
+    if (centiles) renderChart(centiles, ageRange, currentChartType);
 }
 
 async function captureChartImages() {
@@ -812,6 +832,10 @@ async function captureChartImages() {
     var reference = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.reference || 'uk-who' : 'uk-who';
     var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
     var savedType = currentChartType;
+
+    // Force light mode for PDF export
+    var savedTheme = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'light');
 
     var types = ['height', 'weight', 'bmi', 'ofc'];
     for (var i = 0; i < types.length; i++) {
@@ -832,6 +856,13 @@ async function captureChartImages() {
         } catch (e) {
             // Skip failed charts
         }
+    }
+
+    // Restore original theme
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+    } else {
+        document.documentElement.removeAttribute('data-theme');
     }
 
     // Restore the chart that was showing before capture
