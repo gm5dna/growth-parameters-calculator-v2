@@ -570,7 +570,13 @@ function getPreviousMeasurementPoints(chartType) {
   if (typeof lastResults === 'undefined' || !lastResults || !lastResults.previous_measurements) return [];
   return lastResults.previous_measurements
     .filter(function(pm) { return pm[chartType] && pm[chartType].value !== undefined; })
-    .map(function(pm) { return { x: pm.age, y: pm[chartType].value }; });
+    .map(function(pm) {
+      var point = { x: pm.age, y: pm[chartType].value };
+      if (pm.corrected_age !== undefined) {
+        point.correctedX = pm.corrected_age;
+      }
+      return point;
+    });
 }
 
 /**
@@ -687,18 +693,56 @@ function renderChart(centiles, ageRange, chartType) {
     }
   }
 
-  // Add previous measurements as smaller, muted grey scatter points
+  // Add previous measurements — with correction arrows for preterm
   var prevPoints = getPreviousMeasurementPoints(chartType);
   if (prevPoints.length > 0) {
-    datasets.push({
-      type: 'scatter',
-      label: 'Previous measurements',
-      data: prevPoints,
-      pointRadius: 4,
-      pointBackgroundColor: colors.previousMarker,
-      pointBorderColor: '#ffffff',
-      pointBorderWidth: 1,
-      pointHoverRadius: 6,
+    // Separate corrected and uncorrected points
+    var uncorrectedPrev = prevPoints.filter(function(p) { return p.correctedX === undefined; });
+    var correctedPrev = prevPoints.filter(function(p) { return p.correctedX !== undefined; });
+
+    // Uncorrected previous measurements: simple dots
+    if (uncorrectedPrev.length > 0) {
+      datasets.push({
+        type: 'scatter',
+        label: 'Previous measurements',
+        data: uncorrectedPrev,
+        pointRadius: 4,
+        pointBackgroundColor: colors.previousMarker,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 1,
+        pointHoverRadius: 6,
+      });
+    }
+
+    // Corrected previous measurements: arrow from chronological to corrected age
+    correctedPrev.forEach(function(p) {
+      // Arrow line
+      datasets.push({
+        type: 'line',
+        label: 'Gestation correction (previous)',
+        data: [{ x: p.x, y: p.y }, { x: p.correctedX, y: p.y }],
+        borderColor: colors.previousMarker,
+        borderWidth: 1,
+        borderDash: [3, 2],
+        pointRadius: [0, 3],
+        pointBackgroundColor: colors.previousMarker,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 1,
+        pointStyle: ['circle', 'triangle'],
+        fill: false,
+        tension: 0,
+      });
+      // Open circle at chronological age
+      datasets.push({
+        type: 'scatter',
+        label: 'Previous measurements',
+        data: [{ x: p.x, y: p.y }],
+        pointRadius: 4,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: colors.previousMarker,
+        pointBorderWidth: 1.5,
+        pointHoverRadius: 6,
+      });
     });
   }
 
