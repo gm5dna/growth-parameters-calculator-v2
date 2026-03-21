@@ -334,6 +334,19 @@
 
                 <!-- Results grid populated by script.js -->
                 <div class="results-grid" id="resultsGrid"></div>
+
+                <!-- GH Dose Calculator (advanced mode, shown when gh_dose returned) -->
+                <div class="gh-calculator advanced-only" id="ghCalculator" hidden>
+                    <h3>Growth Hormone Dose Calculator</h3>
+                    <div class="gh-adjuster">
+                        <label>Daily Dose:</label>
+                        <button type="button" class="btn-small gh-btn" id="ghDecrease" aria-label="Decrease dose">&minus;</button>
+                        <span id="ghDoseValue" class="gh-dose-value">0.0</span>
+                        <span class="gh-dose-unit">mg/day</span>
+                        <button type="button" class="btn-small gh-btn" id="ghIncrease" aria-label="Increase dose">+</button>
+                    </div>
+                    <div class="gh-results" id="ghResults"></div>
+                </div>
             </section>
 
         </main>

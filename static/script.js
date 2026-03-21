@@ -26,6 +26,9 @@ const STORAGE_KEY = 'growthCalculatorFormState';
 
 var lastResults = null;
 var lastPayload = null;
+var currentGhDose = 0;
+var currentBsa = null;
+var currentWeightKg = null;
 
 const FIELD_IDS = [
   'birthDate',
@@ -522,6 +525,10 @@ function displayResults(results) {
       subs.push('SDS: ' + formatSds(meas.sds));
     }
 
+    if (method === 'bmi' && meas.percentage_median !== null && meas.percentage_median !== undefined) {
+      subs.push('% Median: ' + meas.percentage_median.toFixed(1) + '%');
+    }
+
     resultsGrid.appendChild(createResultCard(label, value, subs));
   });
 
@@ -545,6 +552,65 @@ function displayResults(results) {
     }
 
     resultsGrid.appendChild(createResultCard('MID-PARENTAL HEIGHT', value, subs));
+  }
+
+  // --- BSA card ---
+  if (results.bsa) {
+    resultsGrid.appendChild(createResultCard(
+      'BODY SURFACE AREA',
+      results.bsa.value + ' m\u00B2',
+      ['Method: ' + results.bsa.method]
+    ));
+  }
+
+  // --- Height velocity card ---
+  if (results.height_velocity && results.height_velocity.value !== null) {
+    var velSubs = [];
+    if (results.height_velocity.based_on_date) {
+      velSubs.push('Based on measurement from ' + results.height_velocity.based_on_date);
+    }
+    resultsGrid.appendChild(createResultCard(
+      'HEIGHT VELOCITY',
+      results.height_velocity.value + ' cm/year',
+      velSubs
+    ));
+  } else if (results.height_velocity && results.height_velocity.message) {
+    resultsGrid.appendChild(createResultCard(
+      'HEIGHT VELOCITY',
+      'N/A',
+      [results.height_velocity.message]
+    ));
+  }
+
+  // --- Bone age card ---
+  if (results.bone_age_height) {
+    var ba = results.bone_age_height;
+    var baSubs = [
+      'Standard: ' + (ba.standard === 'gp' ? 'Greulich-Pyle' : 'TW3'),
+      'Height for bone age centile: ' + formatCentile(ba.centile),
+      'Height for bone age SDS: ' + formatSds(ba.sds),
+    ];
+    if (!ba.within_window) baSubs.push('Outside \u00b11 month window');
+    resultsGrid.appendChild(createResultCard(
+      'BONE AGE',
+      ba.bone_age + ' years',
+      baSubs
+    ));
+  }
+
+  // --- GH dose calculator ---
+  if (results.gh_dose && results.gh_dose.initial_daily_dose !== null) {
+    var ghCalc = document.getElementById('ghCalculator');
+    if (ghCalc) {
+      ghCalc.hidden = false;
+      currentGhDose = results.gh_dose.initial_daily_dose;
+      if (results.bsa) currentBsa = results.bsa.value;
+      if (lastPayload && lastPayload.weight) currentWeightKg = lastPayload.weight;
+      updateGhDisplay();
+    }
+  } else {
+    var ghCalc = document.getElementById('ghCalculator');
+    if (ghCalc) ghCalc.hidden = true;
   }
 
   // --- Warnings ---
@@ -579,6 +645,27 @@ function displayWarnings(warnings) {
     warningsList.appendChild(li);
   });
   warningsDisplay.removeAttribute('hidden');
+}
+
+/* ------------------------------------------------------------------ */
+/*  GH Dose Display                                                   */
+/* ------------------------------------------------------------------ */
+
+function updateGhDisplay() {
+  var valueEl = document.getElementById('ghDoseValue');
+  if (valueEl) valueEl.textContent = currentGhDose.toFixed(1);
+  var resultsDiv = document.getElementById('ghResults');
+  if (!resultsDiv) return;
+  var lines = [];
+  var mgWeek = (currentGhDose * 7).toFixed(1);
+  lines.push('= ' + mgWeek + ' mg/week');
+  if (currentBsa) {
+    lines.push('= ' + ((currentGhDose * 7) / currentBsa).toFixed(1) + ' mg/m\u00B2/week');
+  }
+  if (currentWeightKg) {
+    lines.push('= ' + ((currentGhDose * 1000) / currentWeightKg).toFixed(1) + ' mcg/kg/day');
+  }
+  resultsDiv.innerHTML = lines.map(function(l) { return '<div>' + l + '</div>'; }).join('');
 }
 
 /* ------------------------------------------------------------------ */
@@ -718,9 +805,12 @@ function resetForm() {
   var ghCheck = document.getElementById('ghTreatment');
   if (ghCheck) ghCheck.checked = false;
 
-  // Hide GH calculator if visible
-  var ghCalc = document.getElementById('ghCalculator');
-  if (ghCalc) ghCalc.hidden = true;
+  // Reset GH calculator state
+  currentGhDose = 0;
+  currentBsa = null;
+  currentWeightKg = null;
+  var ghCalcEl = document.getElementById('ghCalculator');
+  if (ghCalcEl) ghCalcEl.hidden = true;
 
   // Clear previous measurements
   var prevBody = document.getElementById('prevMeasurementsBody');
@@ -862,6 +952,18 @@ document.addEventListener('DOMContentLoaded', function () {
   var addBaBtn = document.getElementById('addBoneAge');
   if (addBaBtn) addBaBtn.addEventListener('click', function() { addBoneAgeRow(); });
 
+  // GH dose adjuster buttons
+  var ghIncBtn = document.getElementById('ghIncrease');
+  var ghDecBtn = document.getElementById('ghDecrease');
+  if (ghIncBtn) ghIncBtn.addEventListener('click', function() {
+    currentGhDose = Math.round((currentGhDose + 0.025) * 1000) / 1000;
+    updateGhDisplay();
+  });
+  if (ghDecBtn) ghDecBtn.addEventListener('click', function() {
+    currentGhDose = Math.max(0, Math.round((currentGhDose - 0.025) * 1000) / 1000);
+    updateGhDisplay();
+  });
+
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
   // Restore saved form state
@@ -892,5 +994,6 @@ if (typeof module !== 'undefined' && module.exports) {
     toggleCollapsible,
     addBoneAgeRow,
     getBoneAgeAssessments,
+    updateGhDisplay,
   };
 }
