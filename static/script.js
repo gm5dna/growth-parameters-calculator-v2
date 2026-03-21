@@ -737,7 +737,9 @@ function displayResults(results) {
     if (ghCalc) {
       ghCalc.hidden = false;
       if (results.bsa) currentBsa = results.bsa.value;
-      if (lastPayload && lastPayload.weight) currentWeightKg = lastPayload.weight;
+      // Read weight directly from the form (lastPayload may not be set yet)
+      var weightVal = document.getElementById('weight')?.value;
+      if (weightVal) currentWeightKg = parseFloat(weightVal);
       var pen = getSelectedPen();
       currentGhDose = roundToStep(results.gh_dose.initial_daily_dose, pen.step);
       currentGhDose = Math.min(currentGhDose, pen.max);
