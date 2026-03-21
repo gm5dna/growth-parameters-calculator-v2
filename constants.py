@@ -40,3 +40,28 @@ class ErrorCodes:
     SDS_OUT_OF_RANGE = "ERR_008"
     CALCULATION_ERROR = "ERR_009"
     INVALID_INPUT = "ERR_010"
+
+
+# cBNF BSA lookup table: (weight_kg, bsa_m2)
+CBNF_BSA_TABLE = [
+    (1, 0.10),
+    (2, 0.16),
+    (5, 0.30),
+    (10, 0.49),
+    (20, 0.79),
+    (30, 1.1),
+    (50, 1.5),
+    (70, 1.9),
+    (90, 2.2),
+]
+
+# Growth hormone dosing
+GH_STANDARD_DOSE_MG_M2_WEEK = 7.0
+GH_DOSE_STEP_MG = 0.025
+
+# Height velocity
+VELOCITY_MIN_INTERVAL_DAYS = 122  # approximately 4 months
+
+# Bone age
+BONE_AGE_WINDOW_DAYS = 30.44  # approximately 1 month
+VALID_BONE_AGE_STANDARDS = {"gp", "tw3"}
