@@ -310,6 +310,76 @@ class TestCalculateWithBoneAge:
         assert data["results"].get("bone_age_height") is None
 
 
+class TestCalculateAdvancedResults:
+    def test_bsa_boyd_when_both_measurements(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "height": 96.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        bsa = data["results"]["bsa"]
+        assert bsa is not None
+        assert bsa["value"] > 0
+        assert bsa["method"] == "Boyd"
+
+    def test_bsa_cbnf_weight_only(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        bsa = data["results"]["bsa"]
+        assert bsa is not None
+        assert bsa["method"] == "cBNF"
+
+    def test_no_bsa_without_weight(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert data["results"].get("bsa") is None
+
+    def test_bmi_percentage_median(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "height": 96.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        bmi = data["results"]["bmi"]
+        assert "percentage_median" in bmi
+        assert 50 < bmi["percentage_median"] < 200
+
+    def test_gh_initial_dose(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "height": 96.0,
+            "gh_treatment": True,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        gh = data["results"].get("gh_dose")
+        assert gh is not None
+        assert gh["initial_daily_dose"] > 0
+
+
 class TestIndexEndpoint:
     def test_serves_html(self, client):
         response = client.get("/")

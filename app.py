@@ -23,7 +23,11 @@ from calculations import (
     calculate_calendar_age,
     calculate_height_velocity,
     should_apply_gestation_correction,
+    calculate_boyd_bsa,
+    calculate_cbnf_bsa,
+    calculate_gh_dose,
 )
+from rcpchgrowth import percentage_median_bmi
 from models import create_measurement, validate_measurement_sds, extract_measurement_result
 from utils import calculate_mid_parental_height, format_error_response, format_success_response, get_chart_data
 
@@ -141,7 +145,34 @@ def calculate():
             bmi_extracted = extract_measurement_result(bmi_result, bmi_value)
             bmi_warnings = validate_measurement_sds(bmi_extracted["sds"], "bmi")
             all_warnings.extend(bmi_warnings)
+            try:
+                pct_median = percentage_median_bmi(
+                    reference=reference,
+                    age=age_years,
+                    actual_bmi=bmi_value,
+                    sex=sex,
+                )
+                bmi_extracted["percentage_median"] = round(pct_median, 1)
+            except Exception:
+                bmi_extracted["percentage_median"] = None
             results["bmi"] = bmi_extracted
+
+        # BSA
+        bsa_result = None
+        bsa_value = None
+        if weight is not None:
+            if height is not None:
+                bsa_value = calculate_boyd_bsa(weight, height)
+                bsa_result = {"value": bsa_value, "method": "Boyd"}
+            else:
+                bsa_value = calculate_cbnf_bsa(weight)
+                bsa_result = {"value": bsa_value, "method": "cBNF"}
+            results["bsa"] = bsa_result
+
+        # GH dose (only when gh_treatment flag is set and BSA calculable)
+        if data.get("gh_treatment") and bsa_value is not None:
+            gh = calculate_gh_dose(None, bsa_value, weight)
+            results["gh_dose"] = gh
 
         # Mid-parental height
         mph = calculate_mid_parental_height(
