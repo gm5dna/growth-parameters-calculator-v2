@@ -626,11 +626,11 @@ function renderChart(centiles, ageRange, chartType) {
       type: 'scatter',
       label: 'Current measurement',
       data: [measurementPoint],
-      pointRadius: 8,
+      pointRadius: 5,
       pointBackgroundColor: colors.currentMarker,
       pointBorderColor: '#ffffff',
       pointBorderWidth: 2,
-      pointHoverRadius: 10,
+      pointHoverRadius: 7,
     });
   }
 
@@ -641,11 +641,11 @@ function renderChart(centiles, ageRange, chartType) {
       type: 'scatter',
       label: 'Previous measurements',
       data: prevPoints,
-      pointRadius: 6,
+      pointRadius: 4,
       pointBackgroundColor: colors.previousMarker,
       pointBorderColor: '#ffffff',
       pointBorderWidth: 1,
-      pointHoverRadius: 8,
+      pointHoverRadius: 6,
     });
   }
 
@@ -657,12 +657,12 @@ function renderChart(centiles, ageRange, chartType) {
         type: 'scatter',
         label: 'Bone age',
         data: [baPoint],
-        pointRadius: 8,
+        pointRadius: 5,
         pointBackgroundColor: '#f59e0b',
         pointBorderColor: '#ffffff',
         pointBorderWidth: 2,
         pointStyle: 'rectRot',
-        pointHoverRadius: 10,
+        pointHoverRadius: 7,
       });
     }
   }
