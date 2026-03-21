@@ -24,6 +24,9 @@ function debounce(fn, delay) {
 
 const STORAGE_KEY = 'growthCalculatorFormState';
 
+var lastResults = null;
+var lastPayload = null;
+
 const FIELD_IDS = [
   'birthDate',
   'measurementDate',
@@ -382,6 +385,14 @@ function displayResults(results) {
   // --- Warnings ---
   displayWarnings(results.validation_messages);
 
+  // Store results for chart access
+  lastResults = results;
+  lastPayload = gatherFormData();
+
+  // Show "Show Growth Charts" button
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (showChartsBtn) showChartsBtn.hidden = false;
+
   // Show results section
   resultsSection.removeAttribute('hidden');
 
@@ -488,6 +499,14 @@ function resetForm() {
   if (warningsDisplay) warningsDisplay.setAttribute('hidden', '');
   if (warningsList) warningsList.innerHTML = '';
   if (resultsGrid) resultsGrid.innerHTML = '';
+
+  // Hide chart section
+  lastResults = null;
+  lastPayload = null;
+  var chartsSection = document.getElementById('chartsSection');
+  if (chartsSection) chartsSection.hidden = true;
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (showChartsBtn) showChartsBtn.hidden = true;
 }
 
 /* ------------------------------------------------------------------ */

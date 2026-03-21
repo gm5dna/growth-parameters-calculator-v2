@@ -61,6 +61,199 @@ var chartDataCache = {};
 var currentChart = null;
 
 /* ------------------------------------------------------------------ */
+/*  Age range configuration                                           */
+/* ------------------------------------------------------------------ */
+
+var AGE_RANGES = {
+  height: [
+    { label: '0\u20132 years', min: -0.5, max: 2 },
+    { label: '0\u20134 years', min: -0.5, max: 4 },
+    { label: '0\u201318 years', min: -0.5, max: 18 },
+    { label: '2\u201318 years', min: 2, max: 18 },
+    { label: '8\u201320 years', min: 8, max: 20 },
+  ],
+  weight: [
+    { label: '0\u20132 years', min: -0.5, max: 2 },
+    { label: '0\u20134 years', min: -0.5, max: 4 },
+    { label: '0\u201318 years', min: -0.5, max: 18 },
+    { label: '8\u201320 years', min: 8, max: 20 },
+  ],
+  bmi: [
+    { label: '0\u20134 years', min: -0.5, max: 4 },
+    { label: '2\u201318 years', min: 2, max: 18 },
+    { label: '0\u201318 years', min: -0.5, max: 18 },
+  ],
+  ofc: [
+    { label: '0\u20132 years', min: -0.5, max: 2 },
+    { label: '0\u201318 years', min: -0.5, max: 18 },
+  ],
+};
+
+/* ------------------------------------------------------------------ */
+/*  Current chart type and age range tracking                         */
+/* ------------------------------------------------------------------ */
+
+var currentChartType = 'height';
+var currentAgeRangeIndex = 0;
+
+/* ------------------------------------------------------------------ */
+/*  Intelligent default age range selection                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Determine the best default age range index for the given chart type,
+ * child's age, and whether parental heights are available.
+ *
+ * @param {string} chartType         - "height"|"weight"|"bmi"|"ofc".
+ * @param {number} ageYears          - Child's age in decimal years.
+ * @param {boolean} hasParentalHeights - True if MPH data is present.
+ * @returns {number}                  - Index into AGE_RANGES[chartType].
+ */
+function getDefaultAgeRange(chartType, ageYears, hasParentalHeights) {
+  switch (chartType) {
+    case 'height':
+      if (ageYears < 2) return 0;       // 0-2
+      if (ageYears < 4) return 1;       // 0-4
+      return hasParentalHeights ? 3 : 2; // 2-18 or 0-18
+    case 'weight':
+      if (ageYears < 2) return 0;
+      if (ageYears < 4) return 1;
+      return 2;                          // 0-18
+    case 'bmi':
+      if (ageYears < 4) return 0;       // 0-4
+      if (ageYears < 10) return 1;      // 2-18
+      return 2;                          // 0-18
+    case 'ofc':
+      if (ageYears < 2) return 0;       // 0-2
+      return 1;                          // 0-18
+    default:
+      return 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Tab switching                                                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Switch to the given chart type: update active tab, rebuild the
+ * age range selector with intelligent defaults, and fetch/render.
+ *
+ * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
+ */
+function switchChartType(chartType) {
+  currentChartType = chartType;
+
+  // Update active tab
+  document.querySelectorAll('.chart-tab').forEach(function(tab) {
+    if (tab.getAttribute('data-chart') === chartType) {
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+    } else {
+      tab.classList.remove('active');
+      tab.setAttribute('aria-selected', 'false');
+    }
+  });
+
+  // Build age range selector
+  renderAgeRangeSelector(chartType);
+
+  // Fetch and render
+  loadAndRenderChart();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Age range selector                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Populate the #ageRangeSelector container with radio buttons for
+ * the given chart type, pre-selecting the intelligent default.
+ *
+ * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
+ */
+function renderAgeRangeSelector(chartType) {
+  var container = document.getElementById('ageRangeSelector');
+  if (!container) return;
+  container.innerHTML = '';
+
+  var ranges = AGE_RANGES[chartType] || [];
+  var ageYears = (typeof lastResults !== 'undefined' && lastResults) ? lastResults.age_years || 0 : 0;
+  var hasParentalHeights = (typeof lastResults !== 'undefined' && lastResults) ? !!lastResults.mid_parental_height : false;
+  var defaultIndex = getDefaultAgeRange(chartType, ageYears, hasParentalHeights);
+  currentAgeRangeIndex = defaultIndex;
+
+  ranges.forEach(function(range, index) {
+    var label = document.createElement('label');
+    var radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'ageRange';
+    radio.value = index;
+    radio.checked = (index === defaultIndex);
+    radio.addEventListener('change', function() {
+      currentAgeRangeIndex = index;
+      loadAndRenderChart();
+    });
+    label.appendChild(radio);
+    label.appendChild(document.createTextNode(range.label));
+    container.appendChild(label);
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Load and render orchestrator                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Fetch centile data for the current chart type and render it with
+ * the currently selected age range. Reads reference and sex from
+ * lastPayload (set by script.js after a successful calculation).
+ */
+async function loadAndRenderChart() {
+  var reference = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.reference || 'uk-who' : 'uk-who';
+  var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
+  var ranges = AGE_RANGES[currentChartType] || [];
+  var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
+
+  try {
+    var centiles = await fetchChartData(reference, currentChartType, sex);
+    renderChart(centiles, ageRange, currentChartType);
+  } catch (err) {
+    console.error('Chart render failed:', err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Show / close charts                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Reveal the charts section, hide the "Show Growth Charts" button,
+ * default to the height tab, and scroll to the chart.
+ */
+function showCharts() {
+  var chartsSection = document.getElementById('chartsSection');
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (chartsSection) chartsSection.hidden = false;
+  if (showChartsBtn) showChartsBtn.hidden = true;
+
+  switchChartType('height');
+  if (chartsSection) chartsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/**
+ * Hide the charts section, restore the "Show Growth Charts" button,
+ * and destroy the active chart to free resources.
+ */
+function closeCharts() {
+  var chartsSection = document.getElementById('chartsSection');
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (chartsSection) chartsSection.hidden = true;
+  if (showChartsBtn) showChartsBtn.hidden = false;
+  destroyChart();
+}
+
+/* ------------------------------------------------------------------ */
 /*  Data fetching                                                     */
 /* ------------------------------------------------------------------ */
 
@@ -238,3 +431,24 @@ function renderChart(centiles, ageRange, chartType) {
 
   currentChart = new Chart(canvas.getContext('2d'), config);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Event listeners                                                   */
+/* ------------------------------------------------------------------ */
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Show Charts button
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (showChartsBtn) showChartsBtn.addEventListener('click', showCharts);
+
+  // Close Charts button
+  var closeChartsBtn = document.getElementById('closeChartsBtn');
+  if (closeChartsBtn) closeChartsBtn.addEventListener('click', closeCharts);
+
+  // Chart tabs
+  document.querySelectorAll('.chart-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      switchChartType(tab.getAttribute('data-chart'));
+    });
+  });
+});
