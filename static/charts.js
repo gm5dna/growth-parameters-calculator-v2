@@ -943,6 +943,11 @@ async function captureChartImages() {
     var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
     var savedType = currentChartType;
 
+    // Temporarily show charts section so the canvas has dimensions
+    var chartsSection = document.getElementById('chartsSection');
+    var wasHidden = chartsSection && chartsSection.hidden;
+    if (wasHidden) chartsSection.hidden = false;
+
     // Force light mode for PDF export
     var savedTheme = document.documentElement.getAttribute('data-theme');
     document.documentElement.setAttribute('data-theme', 'light');
@@ -978,6 +983,12 @@ async function captureChartImages() {
     // Restore the chart that was showing before capture
     if (savedType) {
         switchChartType(savedType);
+    }
+
+    // Re-hide charts section if it was hidden before
+    if (wasHidden) {
+        chartsSection.hidden = true;
+        destroyChart();
     }
 
     return images;
