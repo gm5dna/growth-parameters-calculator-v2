@@ -11,3 +11,14 @@ node_modules/
 htmlcov/
 *.egg
 .DS_Store
+coverage/
+.playwright-cli/
+
+# Local/dev files not for repo
+CLAUDE.md
+docs/superpowers/
+spec/
+Dockerfile
+.dockerignore
+.github/
+requirements-dev.txt
