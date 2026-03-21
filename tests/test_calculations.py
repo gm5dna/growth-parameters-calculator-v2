@@ -8,6 +8,7 @@ from calculations import (
     calculate_boyd_bsa,
     calculate_cbnf_bsa,
 )
+from calculations import calculate_height_velocity, calculate_gh_dose
 
 
 class TestCalculateAgeInYears:
@@ -114,3 +115,55 @@ class TestCalculateCbnfBsa:
     def test_returns_two_decimal_places(self):
         bsa = calculate_cbnf_bsa(15.0)
         assert bsa == round(bsa, 2)
+
+
+class TestCalculateHeightVelocity:
+    def test_typical_velocity(self):
+        result = calculate_height_velocity(106.0, 100.0, 365)
+        assert result["value"] is not None
+        assert abs(result["value"] - 6.0) < 0.1
+        assert result["message"] is None
+
+    def test_interval_too_short(self):
+        result = calculate_height_velocity(101.0, 100.0, 90)
+        assert result["value"] is None
+        assert "at least 4 months" in result["message"]
+
+    def test_no_previous_height(self):
+        result = calculate_height_velocity(100.0, None, 365)
+        assert result["value"] is None
+        assert "requires a previous height" in result["message"]
+
+    def test_no_current_height(self):
+        result = calculate_height_velocity(None, 100.0, 365)
+        assert result["value"] is None
+
+    def test_rounds_to_one_decimal(self):
+        result = calculate_height_velocity(107.3, 100.0, 365)
+        assert result["value"] == round(result["value"], 1)
+
+
+class TestCalculateGhDose:
+    def test_basic_dose_calculation(self):
+        result = calculate_gh_dose(0.6, 0.58, 20.0)
+        assert result["mg_per_day"] == 0.6
+        assert abs(result["mg_per_week"] - 4.2) < 0.01
+        assert "mg_m2_week" in result
+        assert "mcg_kg_day" in result
+
+    def test_mg_m2_week(self):
+        result = calculate_gh_dose(0.6, 0.58, 20.0)
+        expected = (0.6 * 7) / 0.58
+        assert abs(result["mg_m2_week"] - round(expected, 1)) < 0.2
+
+    def test_mcg_kg_day(self):
+        result = calculate_gh_dose(0.6, None, 20.0)
+        assert abs(result["mcg_kg_day"] - 30.0) < 0.1
+
+    def test_no_bsa_omits_mg_m2(self):
+        result = calculate_gh_dose(0.6, None, 20.0)
+        assert result["mg_m2_week"] is None
+
+    def test_initial_dose_from_bsa(self):
+        result = calculate_gh_dose(None, 0.58, 20.0)
+        assert result["initial_daily_dose"] == 0.6
