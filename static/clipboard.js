@@ -56,12 +56,23 @@ function formatResultsAsText(results, patientInfo) {
 
   if (results.bone_age_height) {
     var ba = results.bone_age_height;
-    lines.push('Bone Age: ' + ba.bone_age + ' years (' + (ba.standard === 'gp' ? 'Greulich-Pyle' : 'TW3') + ')');
+    var chronAge = results.age_years !== undefined ? results.age_years.toFixed(1) : 'N/A';
+    var baSds = (ba.sds !== null && ba.sds !== undefined) ? ' (SDS ' + (ba.sds >= 0 ? '+' : '') + ba.sds.toFixed(2) + ')' : '';
+    lines.push('Bone Age: ' + ba.bone_age + ' years vs chronological age ' + chronAge + ' years' + baSds);
+    lines.push('  Standard: ' + (ba.standard === 'gp' ? 'Greulich-Pyle' : 'TW3'));
     lines.push('');
   }
 
   if (results.gh_dose && results.gh_dose.initial_daily_dose) {
-    lines.push('GH Initial Dose: ' + results.gh_dose.initial_daily_dose + ' mg/day');
+    var ghDose = results.gh_dose.initial_daily_dose;
+    var ghParts = [ghDose + ' mg/day'];
+    if (results.bsa && results.bsa.value) {
+      ghParts.push(((ghDose * 7) / results.bsa.value).toFixed(1) + ' mg/m\u00B2/week');
+    }
+    if (patientInfo.weight) {
+      ghParts.push(((ghDose * 1000) / patientInfo.weight).toFixed(1) + ' mcg/kg/day');
+    }
+    lines.push('GH Initial Dose: ' + ghParts.join(' = '));
     lines.push('');
   }
 

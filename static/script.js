@@ -39,6 +39,7 @@ async function handleCopyResults() {
     var patientInfo = {
         sex: lastPayload ? lastPayload.sex : '',
         reference: lastPayload ? lastPayload.reference || 'uk-who' : 'uk-who',
+        weight: lastPayload ? lastPayload.weight : null,
     };
     var success = await copyResultsToClipboard(lastResults, patientInfo);
     showToast(success ? 'Results copied to clipboard' : 'Copy failed \u2014 please copy manually');

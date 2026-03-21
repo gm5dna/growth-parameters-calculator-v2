@@ -74,10 +74,21 @@ describe('formatResultsAsText', () => {
     expect(text).toContain('Height Velocity: 6.8 cm/year');
   });
 
-  test('includes GH dose when present', () => {
-    const results = { ...baseResults, gh_dose: { initial_daily_dose: 0.6 } };
+  test('includes GH dose with all formats when BSA and weight present', () => {
+    const results = { ...baseResults, gh_dose: { initial_daily_dose: 0.6 }, bsa: { value: 0.95, method: 'Boyd' } };
+    const info = { ...baseInfo, weight: 25.0 };
+    const text = formatResultsAsText(results, info);
+    expect(text).toContain('0.6 mg/day');
+    expect(text).toContain('mg/m\u00B2/week');
+    expect(text).toContain('mcg/kg/day');
+  });
+
+  test('includes bone age with chronological age and SDS', () => {
+    const results = { ...baseResults, age_years: 8.0, bone_age_height: { bone_age: 7.5, standard: 'gp', sds: 0.15, centile: 56.0, within_window: true, height: 125.0 } };
     const text = formatResultsAsText(results, baseInfo);
-    expect(text).toContain('GH Initial Dose: 0.6 mg/day');
+    expect(text).toContain('Bone Age: 7.5 years vs chronological age 8.0 years');
+    expect(text).toContain('SDS +0.15');
+    expect(text).toContain('Greulich-Pyle');
   });
 
   test('omits missing sections', () => {
