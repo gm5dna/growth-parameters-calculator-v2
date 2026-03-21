@@ -625,7 +625,7 @@ function displayResults(results) {
     const ageText = formatCalendarAge(results.age_calendar);
     const subs = [];
     if (results.age_years !== undefined) {
-      subs.push(results.age_years.toFixed(4) + ' decimal years');
+      subs.push(results.age_years.toFixed(2) + ' decimal years');
     }
     resultsGrid.appendChild(createResultCard('AGE', ageText, subs));
   }
@@ -635,7 +635,7 @@ function displayResults(results) {
     const correctedText = formatCalendarAge(results.corrected_age_calendar);
     const subs = [];
     if (results.corrected_age_years !== undefined) {
-      subs.push(results.corrected_age_years.toFixed(4) + ' corrected decimal years');
+      subs.push(results.corrected_age_years.toFixed(2) + ' corrected decimal years');
     }
     subs.push('Gestation correction applied');
     resultsGrid.appendChild(createResultCard('CORRECTED AGE', correctedText, subs));
