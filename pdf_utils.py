@@ -15,6 +15,7 @@ from reportlab.platypus import (
     TableStyle,
     Image,
     PageBreak,
+    KeepTogether,
 )
 from reportlab.pdfgen.canvas import Canvas as BaseCanvas
 
@@ -409,10 +410,12 @@ class GrowthReportPDF:
                 )
                 chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
                 label = chart_labels.get(chart_name, chart_name.capitalize())
-                story.append(Paragraph(f"<b>{label}</b>", self.styles["Normal"]))
-                story.append(Spacer(1, 4))
-                story.append(img)
-                story.append(Spacer(1, 12))
+                story.append(KeepTogether([
+                    Paragraph(f"<b>{label}</b>", self.styles["Normal"]),
+                    Spacer(1, 4),
+                    img,
+                    Spacer(1, 12),
+                ]))
             except Exception:
                 # Skip charts that fail to decode
                 continue
