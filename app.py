@@ -202,8 +202,9 @@ def calculate():
                     continue  # Skip dates at or after current measurement
                 prev_age = calculate_age_in_years(birth_date, prev_date)
                 prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
-                # Add corrected age for preterm infants
-                if correction_applied and gestation_weeks > 0:
+                # Add corrected age if correction applies at THIS measurement's age
+                # (each previous measurement checks independently against age cutoffs)
+                if gestation_weeks > 0 and should_apply_gestation_correction(gestation_weeks, prev_age):
                     edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
                     corrected_prev_age = calculate_age_in_years(edd, prev_date)
                     if corrected_prev_age >= 0:
