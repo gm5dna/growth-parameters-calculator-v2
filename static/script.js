@@ -86,6 +86,136 @@ function handleModeToggle() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Previous Measurements — table row management                      */
+/* ------------------------------------------------------------------ */
+
+function addPrevMeasurementRow(dateVal, heightVal, weightVal, ofcVal) {
+  var tbody = document.getElementById('prevMeasurementsBody');
+  if (!tbody) return;
+  var tr = document.createElement('tr');
+  tr.innerHTML =
+    '<td><input type="date" class="prev-date" value="' + (dateVal || '') + '"></td>' +
+    '<td><input type="number" class="prev-height" step="0.1" min="10" max="250" value="' + (heightVal || '') + '"></td>' +
+    '<td><input type="number" class="prev-weight" step="0.01" min="0.1" max="300" value="' + (weightVal || '') + '"></td>' +
+    '<td><input type="number" class="prev-ofc" step="0.1" min="10" max="100" value="' + (ofcVal || '') + '"></td>' +
+    '<td><button type="button" class="btn-delete" aria-label="Delete row"><span class="material-symbols-outlined">delete</span></button></td>';
+  // Wire up delete button
+  tr.querySelector('.btn-delete').addEventListener('click', function() { tr.remove(); debouncedSave(); });
+  // Wire up change events for auto-save
+  tr.querySelectorAll('input').forEach(function(input) { input.addEventListener('change', debouncedSave); });
+  tbody.appendChild(tr);
+  debouncedSave();
+}
+
+function getPreviousMeasurements() {
+  var rows = document.querySelectorAll('#prevMeasurementsBody tr');
+  var measurements = [];
+  rows.forEach(function(row) {
+    var date = row.querySelector('.prev-date')?.value || '';
+    var height = row.querySelector('.prev-height')?.value || '';
+    var weight = row.querySelector('.prev-weight')?.value || '';
+    var ofc = row.querySelector('.prev-ofc')?.value || '';
+    if (!date && !height && !weight && !ofc) return; // Skip entirely empty rows
+    var entry = {};
+    if (date) entry.date = date;
+    if (height) entry.height = parseFloat(height);
+    if (weight) entry.weight = parseFloat(weight);
+    if (ofc) entry.ofc = parseFloat(ofc);
+    measurements.push(entry);
+  });
+  return measurements;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Previous Measurements — CSV import/export                         */
+/* ------------------------------------------------------------------ */
+
+function importCsv(file) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var lines = e.target.result.trim().split('\n');
+    if (lines.length < 2) return; // Need header + at least 1 row
+    // Skip header line
+    for (var i = 1; i < lines.length; i++) {
+      var cols = lines[i].split(',').map(function(c) { return c.trim(); });
+      if (cols.length < 1) continue;
+      addPrevMeasurementRow(cols[0] || '', cols[1] || '', cols[2] || '', cols[3] || '');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function exportCsv() {
+  var measurements = getPreviousMeasurements();
+  if (measurements.length === 0) return;
+  var csv = 'date,height,weight,ofc\n';
+  measurements.forEach(function(m) {
+    csv += (m.date || '') + ',' + (m.height || '') + ',' + (m.weight || '') + ',' + (m.ofc || '') + '\n';
+  });
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'previous-measurements.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Bone Age Assessments — table row management                       */
+/* ------------------------------------------------------------------ */
+
+function addBoneAgeRow(dateVal, ageVal, standardVal) {
+    var tbody = document.getElementById('boneAgeBody');
+    if (!tbody) return;
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+        '<td><input type="date" class="ba-date" value="' + (dateVal || '') + '"></td>' +
+        '<td><input type="number" class="ba-age" step="0.1" min="0" max="20" value="' + (ageVal || '') + '"></td>' +
+        '<td><select class="ba-standard"><option value="gp"' + (standardVal === 'gp' || !standardVal ? ' selected' : '') + '>Greulich-Pyle</option><option value="tw3"' + (standardVal === 'tw3' ? ' selected' : '') + '>TW3</option></select></td>' +
+        '<td><button type="button" class="btn-delete" aria-label="Delete row"><span class="material-symbols-outlined">delete</span></button></td>';
+    tr.querySelector('.btn-delete').addEventListener('click', function() { tr.remove(); debouncedSave(); });
+    tr.querySelectorAll('input, select').forEach(function(el) { el.addEventListener('change', debouncedSave); });
+    tbody.appendChild(tr);
+    debouncedSave();
+}
+
+function getBoneAgeAssessments() {
+    var rows = document.querySelectorAll('#boneAgeBody tr');
+    var assessments = [];
+    rows.forEach(function(row) {
+        var date = row.querySelector('.ba-date')?.value || '';
+        var age = row.querySelector('.ba-age')?.value || '';
+        var standard = row.querySelector('.ba-standard')?.value || 'gp';
+        if (!date && !age) return;
+        var entry = { standard: standard };
+        if (date) entry.date = date;
+        if (age) entry.bone_age = parseFloat(age);
+        assessments.push(entry);
+    });
+    return assessments;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Collapsible section toggle                                        */
+/* ------------------------------------------------------------------ */
+
+function toggleCollapsible(toggleEl, contentEl) {
+  if (contentEl.hidden) {
+    contentEl.hidden = false;
+    toggleEl.querySelector('.material-symbols-outlined').textContent = 'remove';
+    // Add first row if table is empty
+    var tbody = contentEl.querySelector('tbody');
+    if (tbody && tbody.children.length === 0) {
+      addPrevMeasurementRow();
+    }
+  } else {
+    contentEl.hidden = true;
+    toggleEl.querySelector('.material-symbols-outlined').textContent = 'add';
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /*  Form data gathering                                               */
 /* ------------------------------------------------------------------ */
 
@@ -122,6 +252,12 @@ function gatherFormData() {
 
   const ghTreatment = document.getElementById('ghTreatment')?.checked;
   if (ghTreatment) payload.gh_treatment = true;
+
+  var prevMeasurements = getPreviousMeasurements();
+  if (prevMeasurements.length > 0) payload.previous_measurements = prevMeasurements;
+
+  var boneAgeAssessments = getBoneAgeAssessments();
+  if (boneAgeAssessments.length > 0) payload.bone_age_assessments = boneAgeAssessments;
 
   return payload;
 }
@@ -473,6 +609,9 @@ function saveFormState() {
   var modeCheck = document.getElementById('modeToggle');
   if (modeCheck) state.advancedMode = modeCheck.checked;
 
+  state.previousMeasurements = getPreviousMeasurements();
+  state.boneAgeAssessments = getBoneAgeAssessments();
+
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (_) {
@@ -520,6 +659,29 @@ function restoreFormState() {
     var modeEl = document.getElementById('modeToggle');
     if (modeEl) { modeEl.checked = true; handleModeToggle(); }
   }
+
+  // Restore previous measurements
+  if (state.previousMeasurements && state.previousMeasurements.length > 0) {
+    state.previousMeasurements.forEach(function(m) {
+      addPrevMeasurementRow(m.date || '', m.height || '', m.weight || '', m.ofc || '');
+    });
+    // Expand the section
+    var prevContent = document.getElementById('prevMeasurementsContent');
+    var prevToggle = document.getElementById('prevMeasurementsToggle');
+    if (prevContent) prevContent.hidden = false;
+    if (prevToggle) prevToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
+  }
+
+  // Restore bone age assessments
+  if (state.boneAgeAssessments && state.boneAgeAssessments.length > 0) {
+    state.boneAgeAssessments.forEach(function(ba) {
+      addBoneAgeRow(ba.date || '', ba.bone_age || '', ba.standard || 'gp');
+    });
+    var baContent = document.getElementById('boneAgeContent');
+    var baToggle = document.getElementById('boneAgeToggle');
+    if (baContent) baContent.hidden = false;
+    if (baToggle) baToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
+  }
 }
 
 const debouncedSave = debounce(saveFormState, 500);
@@ -559,6 +721,28 @@ function resetForm() {
   // Hide GH calculator if visible
   var ghCalc = document.getElementById('ghCalculator');
   if (ghCalc) ghCalc.hidden = true;
+
+  // Clear previous measurements
+  var prevBody = document.getElementById('prevMeasurementsBody');
+  if (prevBody) prevBody.innerHTML = '';
+  var prevContent = document.getElementById('prevMeasurementsContent');
+  if (prevContent) prevContent.hidden = true;
+  var prevToggle = document.getElementById('prevMeasurementsToggle');
+  if (prevToggle) {
+    var icon = prevToggle.querySelector('.material-symbols-outlined');
+    if (icon) icon.textContent = 'add';
+  }
+
+  // Clear bone age assessments
+  var baBody = document.getElementById('boneAgeBody');
+  if (baBody) baBody.innerHTML = '';
+  var baContent = document.getElementById('boneAgeContent');
+  if (baContent) baContent.hidden = true;
+  var baToggle = document.getElementById('boneAgeToggle');
+  if (baToggle) {
+    var baIcon = baToggle.querySelector('.material-symbols-outlined');
+    if (baIcon) baIcon.textContent = 'add';
+  }
 
   // Hide chart section
   lastResults = null;
@@ -625,6 +809,59 @@ document.addEventListener('DOMContentLoaded', function () {
   var modeToggle = document.getElementById('modeToggle');
   if (modeToggle) modeToggle.addEventListener('change', handleModeToggle);
 
+  // Previous measurements toggle
+  var prevToggle = document.getElementById('prevMeasurementsToggle');
+  var prevContent = document.getElementById('prevMeasurementsContent');
+  if (prevToggle && prevContent) {
+    prevToggle.addEventListener('click', function() { toggleCollapsible(prevToggle, prevContent); });
+    // Close button
+    var closeBtn = prevContent.querySelector('.collapsible-close');
+    if (closeBtn) closeBtn.addEventListener('click', function() {
+      prevContent.hidden = true;
+      prevToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+    });
+  }
+  // Add another row button
+  var addPrevBtn = document.getElementById('addPrevMeasurement');
+  if (addPrevBtn) addPrevBtn.addEventListener('click', function() { addPrevMeasurementRow(); });
+  // CSV import
+  var importBtn = document.getElementById('importCsvBtn');
+  var csvInput = document.getElementById('csvFileInput');
+  if (importBtn && csvInput) {
+    importBtn.addEventListener('click', function() { csvInput.click(); });
+    csvInput.addEventListener('change', function() {
+      if (csvInput.files.length > 0) importCsv(csvInput.files[0]);
+      csvInput.value = ''; // Reset for re-import
+    });
+  }
+  // CSV export
+  var exportBtn = document.getElementById('exportCsvBtn');
+  if (exportBtn) exportBtn.addEventListener('click', exportCsv);
+
+  // Bone age toggle
+  var baToggle = document.getElementById('boneAgeToggle');
+  var baContent = document.getElementById('boneAgeContent');
+  if (baToggle && baContent) {
+    baToggle.addEventListener('click', function() {
+      if (baContent.hidden) {
+        baContent.hidden = false;
+        baToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
+        var tbody = document.getElementById('boneAgeBody');
+        if (tbody && tbody.children.length === 0) addBoneAgeRow();
+      } else {
+        baContent.hidden = true;
+        baToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+      }
+    });
+    var baCloseBtn = baContent.querySelector('.collapsible-close');
+    if (baCloseBtn) baCloseBtn.addEventListener('click', function() {
+      baContent.hidden = true;
+      baToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+    });
+  }
+  var addBaBtn = document.getElementById('addBoneAge');
+  if (addBaBtn) addBaBtn.addEventListener('click', function() { addBoneAgeRow(); });
+
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
   // Restore saved form state
@@ -648,5 +885,12 @@ if (typeof module !== 'undefined' && module.exports) {
     displayResults,
     handleSubmit,
     handleModeToggle,
+    addPrevMeasurementRow,
+    getPreviousMeasurements,
+    importCsv,
+    exportCsv,
+    toggleCollapsible,
+    addBoneAgeRow,
+    getBoneAgeAssessments,
   };
 }
