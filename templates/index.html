@@ -79,7 +79,7 @@
                 <!-- Date fields and measurements -->
                 <fieldset class="form-section">
                     <legend>Measurements</legend>
-                    <div class="form-grid">
+                    <div class="form-grid-three">
 
                         <!-- Date of Birth -->
                         <div class="form-field">
@@ -109,9 +109,23 @@
                             <span class="field-error" id="measurementDateError" role="alert"></span>
                         </div>
 
-                        <!-- Weight / Height / OFC — 3 across on desktop -->
+                        <!-- Gestation (advanced only) -->
+                        <div class="form-field advanced-only">
+                            <label for="gestationWeeks">Gestation</label>
+                            <div class="gestation-inputs">
+                                <input type="number" id="gestationWeeks" name="gestation_weeks" min="22" max="44" step="1" placeholder="Wk" aria-label="Gestation weeks">
+                                <span class="unit">wk</span>
+                                <span class="gestation-separator">+</span>
+                                <input type="number" id="gestationDays" name="gestation_days" min="0" max="6" step="1" placeholder="D" aria-label="Gestation days">
+                                <span class="unit">d</span>
+                            </div>
+                            <span class="field-error" id="gestationError" role="alert"></span>
                         </div>
-                        <div class="form-grid-three">
+
+                    </div>
+
+                    <!-- Weight / Height / OFC — 3 across on desktop -->
+                    <div class="form-grid-three">
                         <div class="form-field">
                             <label for="weight">Weight</label>
                             <div class="input-with-unit">
@@ -170,22 +184,6 @@
                             </div>
                             <span class="field-error" id="ofcError" role="alert"></span>
                         </div>
-                        </div>
-
-                        <div class="form-grid">
-                        <!-- Gestation (advanced only) -->
-                        <div class="form-field advanced-only">
-                            <label for="gestationWeeks">Gestation</label>
-                            <div class="gestation-inputs">
-                                <input type="number" id="gestationWeeks" name="gestation_weeks" min="22" max="44" step="1" placeholder="Wk" aria-label="Gestation weeks">
-                                <span class="unit">wk</span>
-                                <span class="gestation-separator">+</span>
-                                <input type="number" id="gestationDays" name="gestation_days" min="0" max="6" step="1" placeholder="D" aria-label="Gestation days">
-                                <span class="unit">d</span>
-                            </div>
-                            <span class="field-error" id="gestationError" role="alert"></span>
-                        </div>
-
                     </div>
                     <p class="form-hint">At least one measurement (weight, height, or head circumference) is required.</p>
                 </fieldset>
