@@ -12,6 +12,7 @@ def app():
     """Create Flask application for testing."""
     from app import app as flask_app
     flask_app.config["TESTING"] = True
+    flask_app.config["RATELIMIT_ENABLED"] = False
     return flask_app
 
 

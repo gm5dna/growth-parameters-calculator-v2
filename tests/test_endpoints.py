@@ -385,3 +385,61 @@ class TestIndexEndpoint:
         response = client.get("/")
         assert response.status_code == 200
         assert b"Growth Parameters Calculator" in response.data
+
+
+class TestExportPdfEndpoint:
+    def test_basic_pdf_export(self, client):
+        payload = {
+            "results": {
+                "age_years": 3.0,
+                "age_calendar": {"years": 3, "months": 0, "days": 0},
+                "gestation_correction_applied": False,
+                "weight": {"value": 14.5, "centile": 50.1, "sds": 0.03},
+                "height": {"value": 96.0, "centile": 25.5, "sds": -0.67},
+                "validation_messages": [],
+            },
+            "patient_info": {
+                "sex": "male",
+                "birth_date": "2020-06-15",
+                "measurement_date": "2023-06-15",
+                "reference": "uk-who",
+            },
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        assert response.content_type == "application/pdf"
+        assert response.data[:5] == b"%PDF-"
+        assert "attachment" in response.headers.get("Content-Disposition", "")
+
+    def test_pdf_missing_results(self, client):
+        payload = {"patient_info": {"sex": "male"}}
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+
+    def test_pdf_missing_patient_info(self, client):
+        payload = {"results": {"age_years": 3.0, "validation_messages": []}}
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+
+    def test_pdf_with_chart_images(self, client):
+        import base64
+        from PIL import Image as PILImage
+        from io import BytesIO as BIO
+        img = PILImage.new('RGB', (2, 2), color='white')
+        buf = BIO()
+        img.save(buf, format='PNG')
+        tiny_png = base64.b64encode(buf.getvalue()).decode()
+        payload = {
+            "results": {
+                "age_years": 3.0,
+                "age_calendar": {"years": 3, "months": 0, "days": 0},
+                "gestation_correction_applied": False,
+                "weight": {"value": 14.5, "centile": 50.1, "sds": 0.03},
+                "validation_messages": [],
+            },
+            "patient_info": {"sex": "male", "birth_date": "2020-06-15", "measurement_date": "2023-06-15", "reference": "uk-who"},
+            "chart_images": {"height": f"data:image/png;base64,{tiny_png}"},
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        assert response.data[:5] == b"%PDF-"
