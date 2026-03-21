@@ -18,7 +18,5 @@ coverage/
 CLAUDE.md
 docs/superpowers/
 spec/
-Dockerfile
-.dockerignore
 .github/
 requirements-dev.txt
