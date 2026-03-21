@@ -3,7 +3,9 @@ import os
 import logging
 from datetime import datetime as dt, timedelta
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dateutil.relativedelta import relativedelta
 
 from constants import ErrorCodes, MAX_AGE_YEARS, VALID_MEASUREMENT_METHODS, BONE_AGE_WINDOW_DAYS
@@ -30,11 +32,18 @@ from calculations import (
 from rcpchgrowth import percentage_median_bmi
 from models import create_measurement, validate_measurement_sds, extract_measurement_result
 from utils import calculate_mid_parental_height, format_error_response, format_success_response, get_chart_data
+from pdf_utils import GrowthReportPDF
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    storage_uri="memory://",
+)
 
 
 @app.route("/")
@@ -321,6 +330,35 @@ def chart_data():
     except Exception as e:
         logger.error("Chart data error: %s", str(e))
         return jsonify(format_error_response(str(e), ErrorCodes.CALCULATION_ERROR)), 400
+
+
+@app.route("/export-pdf", methods=["POST"])
+@limiter.limit("10 per minute")
+def export_pdf():
+    try:
+        data = request.get_json(force=True)
+    except Exception:
+        return jsonify(format_error_response("Request body must be valid JSON.", ErrorCodes.INVALID_INPUT)), 400
+
+    results = data.get("results")
+    patient_info = data.get("patient_info")
+
+    if not results:
+        return jsonify(format_error_response("Results data is required.", ErrorCodes.INVALID_INPUT)), 400
+    if not patient_info:
+        return jsonify(format_error_response("Patient information is required.", ErrorCodes.INVALID_INPUT)), 400
+
+    try:
+        chart_images = data.get("chart_images", {})
+        pdf = GrowthReportPDF(results, patient_info, chart_images)
+        buffer = pdf.generate()
+
+        filename = f"growth-report-{dt.now().strftime('%Y-%m-%d-%H%M%S')}.pdf"
+
+        return send_file(buffer, mimetype="application/pdf", as_attachment=True, download_name=filename)
+    except Exception as e:
+        logger.error("PDF generation error: %s", str(e))
+        return jsonify(format_error_response("PDF generation failed. Please try again.", ErrorCodes.CALCULATION_ERROR)), 400
 
 
 if __name__ == "__main__":
