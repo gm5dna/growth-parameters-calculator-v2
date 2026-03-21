@@ -1,6 +1,7 @@
 """Flask application — routes and orchestration."""
 import os
 import logging
+from datetime import datetime as dt
 
 from flask import Flask, render_template, request, jsonify
 from dateutil.relativedelta import relativedelta
@@ -20,6 +21,7 @@ from validation import (
 from calculations import (
     calculate_age_in_years,
     calculate_calendar_age,
+    calculate_height_velocity,
     should_apply_gestation_correction,
 )
 from models import create_measurement, validate_measurement_sds, extract_measurement_result
@@ -149,6 +151,54 @@ def calculate():
         )
         if mph:
             results["mid_parental_height"] = mph
+
+        # Process previous measurements
+        processed_prev = []
+        for entry in data.get("previous_measurements", []):
+            try:
+                prev_date_str = entry.get("date", "")
+                prev_date = validate_date(prev_date_str, "previous measurement date")
+                if prev_date >= measurement_date:
+                    continue  # Skip dates at or after current measurement
+                prev_age = calculate_age_in_years(birth_date, prev_date)
+                prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
+                for method in ["height", "weight", "ofc"]:
+                    value = entry.get(method)
+                    if value is not None:
+                        value = float(value)
+                        m = create_measurement(
+                            sex=sex, birth_date=birth_date,
+                            measurement_date=prev_date,
+                            measurement_method=method,
+                            observation_value=value,
+                            reference=reference,
+                            gestation_weeks=gestation_weeks,
+                            gestation_days=gestation_days,
+                        )
+                        prev_result[method] = extract_measurement_result(m, value)
+                processed_prev.append(prev_result)
+            except (ValidationError, ValueError, Exception):
+                continue  # Skip invalid entries silently
+
+        if processed_prev:
+            results["previous_measurements"] = processed_prev
+
+        # Calculate height velocity
+        if height is not None and processed_prev:
+            prev_with_height = [
+                p for p in processed_prev if "height" in p
+            ]
+            if prev_with_height:
+                # Sort by date descending (most recent first)
+                prev_with_height.sort(key=lambda p: p["date"], reverse=True)
+                most_recent = prev_with_height[0]
+                prev_date_obj = dt.strptime(most_recent["date"], "%Y-%m-%d").date()
+                interval = (measurement_date - prev_date_obj).days
+                velocity = calculate_height_velocity(
+                    height, most_recent["height"]["value"], interval
+                )
+                velocity["based_on_date"] = most_recent["date"]
+                results["height_velocity"] = velocity
 
         results["validation_messages"] = all_warnings
 

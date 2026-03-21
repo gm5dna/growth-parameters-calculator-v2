@@ -163,6 +163,91 @@ class TestChartDataEndpoint:
         assert response.status_code == 200
 
 
+class TestCalculateWithPreviousMeasurements:
+    def test_previous_measurements_processed(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [
+                {"date": "2022-12-15", "height": 91.0},
+                {"date": "2022-06-15", "height": 86.0},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        prev = data["results"]["previous_measurements"]
+        assert len(prev) == 2
+        assert "age" in prev[0]
+        assert "height" in prev[0]
+        assert "centile" in prev[0]["height"]
+        assert "sds" in prev[0]["height"]
+
+    def test_height_velocity_calculated(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [
+                {"date": "2022-06-15", "height": 88.0},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        velocity = data["results"]["height_velocity"]
+        assert velocity["value"] is not None
+        assert velocity["value"] > 0
+        assert "based_on_date" in velocity
+
+    def test_velocity_interval_too_short(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [
+                {"date": "2023-05-15", "height": 95.5},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        velocity = data["results"]["height_velocity"]
+        assert velocity["value"] is None
+        assert velocity["message"] is not None
+
+    def test_no_previous_measurements_no_velocity(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert "height_velocity" not in data["results"] or data["results"].get("height_velocity") is None
+
+    def test_previous_measurement_invalid_date_skipped(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [
+                {"date": "2024-01-01", "height": 100.0},
+                {"date": "2022-06-15", "height": 88.0},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert data["success"] is True
+        prev = data["results"]["previous_measurements"]
+        assert len(prev) == 1
+
+
 class TestIndexEndpoint:
     def test_serves_html(self, client):
         response = client.get("/")
