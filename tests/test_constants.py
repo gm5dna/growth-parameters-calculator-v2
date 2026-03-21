@@ -11,7 +11,7 @@ from constants import (
     ErrorCodes,
     CBNF_BSA_TABLE,
     GH_STANDARD_DOSE_MG_M2_WEEK,
-    GH_DOSE_STEP_MG,
+    GH_PEN_DEVICES,
     VELOCITY_MIN_INTERVAL_DAYS,
     BONE_AGE_WINDOW_DAYS,
     VALID_BONE_AGE_STANDARDS,
@@ -85,7 +85,18 @@ def test_cbnf_bsa_table():
 
 def test_gh_constants():
     assert GH_STANDARD_DOSE_MG_M2_WEEK == 7.0
-    assert GH_DOSE_STEP_MG == 0.025
+
+
+def test_gh_pen_devices():
+    assert isinstance(GH_PEN_DEVICES, list)
+    assert len(GH_PEN_DEVICES) == 6
+    nordi5 = [d for d in GH_PEN_DEVICES if d["id"] == "norditropin-5"][0]
+    assert nordi5["step"] == 0.025
+    assert nordi5["min"] == 0.025
+    assert nordi5["max"] == 2.0
+    surepal5 = [d for d in GH_PEN_DEVICES if d["id"] == "surepal-5"][0]
+    assert surepal5["step"] == 0.1
+    assert surepal5["max"] == 2.4
 
 
 def test_velocity_constants():

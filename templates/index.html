@@ -351,13 +351,25 @@
                 <!-- GH Dose Calculator (advanced mode, shown when gh_dose returned) -->
                 <div class="gh-calculator advanced-only" id="ghCalculator" hidden>
                     <h3>Growth Hormone Dose Calculator</h3>
+                    <div class="gh-pen-selector">
+                        <label for="ghPenDevice">Pen Device:</label>
+                        <select id="ghPenDevice" aria-label="Growth hormone pen device">
+                            <option value="norditropin-5">Norditropin FlexPro 5 mg (0.025 mg steps)</option>
+                            <option value="norditropin-10">Norditropin FlexPro 10 mg (0.05 mg steps)</option>
+                            <option value="norditropin-15">Norditropin FlexPro 15 mg (0.1 mg steps)</option>
+                            <option value="surepal-5">Omnitrope SurePal 5 (0.1 mg steps)</option>
+                            <option value="surepal-10">Omnitrope SurePal 10 (0.1 mg steps)</option>
+                            <option value="surepal-15">Omnitrope SurePal 15 (0.1 mg steps)</option>
+                        </select>
+                    </div>
                     <div class="gh-adjuster">
                         <label>Daily Dose:</label>
                         <button type="button" class="btn-small gh-btn" id="ghDecrease" aria-label="Decrease dose">&minus;</button>
-                        <span id="ghDoseValue" class="gh-dose-value">0.0</span>
+                        <span id="ghDoseValue" class="gh-dose-value">0.000</span>
                         <span class="gh-dose-unit">mg/day</span>
                         <button type="button" class="btn-small gh-btn" id="ghIncrease" aria-label="Increase dose">+</button>
                     </div>
+                    <div class="gh-pen-info" id="ghPenInfo"></div>
                     <div class="gh-results" id="ghResults"></div>
                 </div>
             </section>
