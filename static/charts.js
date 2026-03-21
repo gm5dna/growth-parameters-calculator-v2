@@ -70,14 +70,25 @@ function hexToRgb(hex) {
  */
 function getChartColors() {
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
+    var isFemale = sex === 'female';
+
     return {
-        centileLine: isDark ? '#9ca3af' : '#6b7280',
-        median: isDark ? '#60a5fa' : '#1e40af',
-        currentMarker: isDark ? '#3b82f6' : '#2563eb',
+        centileLine: isFemale
+            ? (isDark ? '#d88aa8' : '#be185d')
+            : (isDark ? '#9ca3af' : '#6b7280'),
+        median: isFemale
+            ? (isDark ? '#f472b6' : '#9d174d')
+            : (isDark ? '#60a5fa' : '#1e40af'),
+        currentMarker: isFemale
+            ? (isDark ? '#ec4899' : '#db2777')
+            : (isDark ? '#3b82f6' : '#2563eb'),
         previousMarker: isDark ? '#6b7280' : '#9ca3af',
         gridColor: isDark ? '#374151' : '#e5e7eb',
         textColor: isDark ? '#e5e7eb' : '#374151',
-        labelColor: isDark ? '#9ca3af' : '#6b7280',
+        labelColor: isFemale
+            ? (isDark ? '#d88aa8' : '#9d174d')
+            : (isDark ? '#9ca3af' : '#6b7280'),
         bgColor: isDark ? '#1f2937' : '#ffffff',
     };
 }
