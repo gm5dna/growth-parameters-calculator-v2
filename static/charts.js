@@ -796,13 +796,37 @@ function renderChart(centiles, ageRange, chartType) {
         tooltip: {
           enabled: true,
           filter: function(tooltipItem) {
-            return tooltipItem.dataset.type === 'scatter';
+            // Allow scatter points and the corrected-age end of correction arrows
+            if (tooltipItem.dataset.type === 'scatter') return true;
+            var lbl = tooltipItem.dataset.label || '';
+            if (lbl.indexOf('Gestation correction') === 0 && tooltipItem.dataIndex === 1) return true;
+            return false;
           },
           callbacks: {
             title: function() { return ''; },
             label: function(context) {
               var point = context.raw;
               var datasetLabel = context.dataset.label || '';
+
+              // Gestation correction arrow tip (corrected age)
+              if (datasetLabel.indexOf('Gestation correction') === 0) {
+                var chronPoint = context.dataset.data[0];
+                var measurement = lastResults[currentChartType];
+                var name = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
+                var unit = CHART_UNITS[currentChartType] || '';
+                var lines = [
+                  'Corrected age: ' + point.x.toFixed(2) + ' years',
+                  'Chronological age: ' + chronPoint.x.toFixed(2) + ' years',
+                  name + ': ' + point.y + ' ' + unit,
+                ];
+                if (measurement && measurement.centile !== null) {
+                  lines.push('Centile (corrected): ' + measurement.centile.toFixed(1) + '%');
+                }
+                if (measurement && measurement.sds !== null) {
+                  lines.push('SDS (corrected): ' + (measurement.sds >= 0 ? '+' : '') + measurement.sds.toFixed(2));
+                }
+                return lines;
+              }
 
               // Bone age tooltip
               if (datasetLabel === 'Bone age') {
