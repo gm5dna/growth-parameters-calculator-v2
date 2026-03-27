@@ -75,21 +75,21 @@ function getChartColors() {
 
     return {
         centileLine: isFemale
-            ? (isDark ? '#d88aa8' : '#be185d')
-            : (isDark ? '#9ca3af' : '#6b7280'),
+            ? (isDark ? '#c88a9e' : '#b0466a')
+            : (isDark ? '#8a9cac' : '#5a7080'),
         median: isFemale
-            ? (isDark ? '#f472b6' : '#9d174d')
-            : (isDark ? '#60a5fa' : '#1e40af'),
+            ? (isDark ? '#d87aa0' : '#8e3060')
+            : (isDark ? '#5aadcc' : '#1a5c7a'),
         currentMarker: isFemale
-            ? (isDark ? '#ec4899' : '#db2777')
-            : (isDark ? '#3b82f6' : '#2563eb'),
+            ? (isDark ? '#d86a94' : '#c24070')
+            : (isDark ? '#38b0cc' : '#1a7a96'),
         previousMarker: isDark ? '#6b7280' : '#9ca3af',
-        gridColor: isDark ? '#374151' : '#e5e7eb',
-        textColor: isDark ? '#e5e7eb' : '#374151',
+        gridColor: isDark ? '#2d3b4d' : '#dce1e8',
+        textColor: isDark ? '#e8ecf1' : '#1a2332',
         labelColor: isFemale
-            ? (isDark ? '#d88aa8' : '#9d174d')
-            : (isDark ? '#9ca3af' : '#6b7280'),
-        bgColor: isDark ? '#1f2937' : '#ffffff',
+            ? (isDark ? '#c88a9e' : '#8e3060')
+            : (isDark ? '#8a9cac' : '#5a7080'),
+        bgColor: isDark ? '#1c2733' : '#ffffff',
     };
 }
 
@@ -494,6 +494,7 @@ function getMphAnnotations(chartType, ageRange) {
   var mph = lastResults.mid_parental_height;
   if (!mph) return {};
   if (ageRange.max < 18) return {};
+  var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
 
   // MPH represents predicted adult height — draw it at the right end of
   // the chart where the centile curves reach adult values. The line extends
@@ -509,7 +510,7 @@ function getMphAnnotations(chartType, ageRange) {
       yMax: mph.mid_parental_height,
       xMin: mphXStart,
       xMax: mphXEnd,
-      borderColor: 'rgba(124, 58, 237, 0.8)',
+      borderColor: 'rgba(100, 80, 140, 0.8)',
       borderWidth: 2,
       borderDash: [6, 4],
       label: {
@@ -517,8 +518,8 @@ function getMphAnnotations(chartType, ageRange) {
         content: 'MPH: ' + mph.mid_parental_height + ' cm',
         position: 'start',
         font: { size: 10, weight: 'bold' },
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        color: '#7c3aed',
+        backgroundColor: isDark ? 'rgba(28, 39, 51, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+        color: '#6b5090',
         padding: { top: 2, bottom: 2, left: 4, right: 4 },
         yAdjust: -14,
       },
@@ -529,7 +530,7 @@ function getMphAnnotations(chartType, ageRange) {
       xMax: mphXEnd,
       yMin: mph.target_range_lower,
       yMax: mph.target_range_upper,
-      backgroundColor: 'rgba(124, 58, 237, 0.06)',
+      backgroundColor: 'rgba(100, 80, 140, 0.06)',
       borderWidth: 0,
     },
     mphUpper: {
@@ -538,7 +539,7 @@ function getMphAnnotations(chartType, ageRange) {
       yMax: mph.target_range_upper,
       xMin: mphXStart,
       xMax: mphXEnd,
-      borderColor: 'rgba(124, 58, 237, 0.3)',
+      borderColor: 'rgba(100, 80, 140, 0.25)',
       borderWidth: 1,
       borderDash: [3, 3],
     },
@@ -548,7 +549,7 @@ function getMphAnnotations(chartType, ageRange) {
       yMax: mph.target_range_lower,
       xMin: mphXStart,
       xMax: mphXEnd,
-      borderColor: 'rgba(124, 58, 237, 0.3)',
+      borderColor: 'rgba(100, 80, 140, 0.25)',
       borderWidth: 1,
       borderDash: [3, 3],
     },
@@ -661,7 +662,7 @@ function renderChart(centiles, ageRange, chartType) {
         borderDash: [4, 3],
         pointRadius: [0, 5],  // no dot at chronological end, arrow tip at corrected
         pointBackgroundColor: colors.currentMarker,
-        pointBorderColor: '#ffffff',
+        pointBorderColor: colors.bgColor,
         pointBorderWidth: 2,
         pointStyle: ['circle', 'triangle'],
         fill: false,
@@ -673,7 +674,7 @@ function renderChart(centiles, ageRange, chartType) {
         label: 'Current measurement',
         data: [measurementPoint],
         pointRadius: 5,
-        pointBackgroundColor: '#ffffff',
+        pointBackgroundColor: colors.bgColor,
         pointBorderColor: colors.currentMarker,
         pointBorderWidth: 2,
         pointHoverRadius: 7,
@@ -686,7 +687,7 @@ function renderChart(centiles, ageRange, chartType) {
         data: [measurementPoint],
         pointRadius: 5,
         pointBackgroundColor: colors.currentMarker,
-        pointBorderColor: '#ffffff',
+        pointBorderColor: colors.bgColor,
         pointBorderWidth: 2,
         pointHoverRadius: 7,
       });
@@ -708,7 +709,7 @@ function renderChart(centiles, ageRange, chartType) {
         data: uncorrectedPrev,
         pointRadius: 4,
         pointBackgroundColor: colors.previousMarker,
-        pointBorderColor: '#ffffff',
+        pointBorderColor: colors.bgColor,
         pointBorderWidth: 1,
         pointHoverRadius: 6,
       });
@@ -726,7 +727,7 @@ function renderChart(centiles, ageRange, chartType) {
         borderDash: [3, 2],
         pointRadius: [0, 3],
         pointBackgroundColor: colors.previousMarker,
-        pointBorderColor: '#ffffff',
+        pointBorderColor: colors.bgColor,
         pointBorderWidth: 1,
         pointStyle: ['circle', 'triangle'],
         fill: false,
@@ -738,7 +739,7 @@ function renderChart(centiles, ageRange, chartType) {
         label: 'Previous measurements',
         data: [{ x: p.x, y: p.y }],
         pointRadius: 4,
-        pointBackgroundColor: '#ffffff',
+        pointBackgroundColor: colors.bgColor,
         pointBorderColor: colors.previousMarker,
         pointBorderWidth: 1.5,
         pointHoverRadius: 6,
@@ -755,8 +756,8 @@ function renderChart(centiles, ageRange, chartType) {
         label: 'Bone age',
         data: [baPoint],
         pointRadius: 5,
-        pointBackgroundColor: '#f59e0b',
-        pointBorderColor: '#ffffff',
+        pointBackgroundColor: '#d97706',
+        pointBorderColor: colors.bgColor,
         pointBorderWidth: 2,
         pointStyle: 'rectRot',
         pointHoverRadius: 7,

@@ -20,8 +20,8 @@ from reportlab.platypus import (
 from reportlab.pdfgen.canvas import Canvas as BaseCanvas
 
 # Colour palette
-BLUE_ACCENT = colors.HexColor("#1e40af")
-HEADER_BG = colors.HexColor("#f0f4ff")
+BLUE_ACCENT = colors.HexColor("#096b78")
+HEADER_BG = colors.HexColor("#e8f4f6")
 GRID_LINE = colors.HexColor("#e5e7eb")
 WARNING_BG = colors.HexColor("#fef3c7")
 WARNING_BORDER = colors.HexColor("#f59e0b")
@@ -155,7 +155,7 @@ class GrowthReportPDF:
                 parent=self.styles["Normal"],
                 fontName="Helvetica",
                 fontSize=9,
-                textColor=colors.HexColor("#6b7280"),
+                textColor=colors.HexColor("#5c6878"),
                 spaceAfter=2,
             )
         )
