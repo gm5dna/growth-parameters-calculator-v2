@@ -5,34 +5,38 @@
 /* ── Custom Properties ────────────────────────────────────── */
 :root {
   --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --accent-primary: #2563eb;
-  --accent-secondary: #1e40af;
-  --border-color: #e5e7eb;
-  --error-color: #dc2626;
-  --warning-color: #f59e0b;
-  --success-color: #10b981;
+  --bg-secondary: #f4f6f8;
+  --bg-tertiary: #eef1f5;
+  --text-primary: #1a2332;
+  --text-secondary: #5c6878;
+  --accent-primary: #0d7d8c;
+  --accent-secondary: #096b78;
+  --accent-subtle: #e8f4f6;
+  --border-color: #dce1e8;
+  --error-color: #c53030;
+  --warning-color: #d97706;
+  --success-color: #0e9f6e;
 }
 
 /* ── Dark Mode Overrides ─────────────────────────────────── */
 [data-theme="dark"] {
-    --bg-primary: #1f2937;
-    --bg-secondary: #111827;
-    --text-primary: #f3f4f6;
-    --text-secondary: #9ca3af;
-    --accent-primary: #3b82f6;
-    --accent-secondary: #60a5fa;
-    --border-color: #374151;
-    --error-color: #ef4444;
+    --bg-primary: #1c2733;
+    --bg-secondary: #131c27;
+    --bg-tertiary: #243040;
+    --text-primary: #e8ecf1;
+    --text-secondary: #8e9bab;
+    --accent-primary: #2eb8c9;
+    --accent-secondary: #5cc9d6;
+    --accent-subtle: #1a3a42;
+    --border-color: #2d3b4d;
+    --error-color: #f87171;
     --warning-color: #fbbf24;
     --success-color: #34d399;
 }
 
 [data-theme="dark"] .btn-show-charts { background: var(--bg-secondary); }
 [data-theme="dark"] .btn-copy { background: var(--bg-primary); color: var(--text-primary); }
-[data-theme="dark"] .btn-submit { background: linear-gradient(135deg, #4f6df5, #6d3fbf); }
+[data-theme="dark"] .btn-submit { background: linear-gradient(135deg, #2eb8c9, #1a98a8); }
 
 /* ── Reset & Base ─────────────────────────────────────────── */
 *,
@@ -141,7 +145,7 @@ footer a:hover {
 
 /* ── Disclaimer Banner ────────────────────────────────────── */
 .disclaimer {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(217, 119, 6, 0.1);
   border: 1px solid var(--warning-color);
   padding: 16px;
   border-radius: 8px;
@@ -289,7 +293,7 @@ select:focus,
 textarea:focus {
   border-color: var(--accent-primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px rgba(13, 125, 140, 0.12);
 }
 
 input[type="text"]:disabled,
@@ -387,8 +391,8 @@ input::placeholder {
 .radio-label input[type="radio"]:checked + .radio-text {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
-  background: rgba(37, 99, 235, 0.06);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  background: var(--accent-subtle);
+  box-shadow: 0 0 0 2px rgba(13, 125, 140, 0.15);
 }
 
 .radio-label:hover .radio-text {
@@ -430,7 +434,7 @@ input::placeholder {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #0d7d8c, #0a6673);
   color: white;
   padding: 14px 32px;
   border: none;
@@ -445,7 +449,7 @@ input::placeholder {
 
 .btn-submit:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4px 12px rgba(13, 125, 140, 0.35);
 }
 
 .btn-submit:active {
@@ -503,7 +507,7 @@ input::placeholder {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  background: rgba(220, 38, 38, 0.1);
+  background: rgba(197, 48, 48, 0.1);
   border: 1px solid var(--error-color);
   color: var(--error-color);
   padding: 16px;
@@ -539,7 +543,7 @@ input::placeholder {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(217, 119, 6, 0.1);
   border-left: 4px solid var(--warning-color);
   padding: 12px 16px;
   margin-bottom: 16px;
