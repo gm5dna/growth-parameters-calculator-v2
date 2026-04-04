@@ -1,5 +1,7 @@
 # Growth Parameters Calculator
 
+> **Disclaimer:** This is an experimental web application for **educational and research purposes only**. It must **not** be used for clinical decision-making. All calculations must be verified independently before any clinical use. The authors accept no liability for any clinical decisions made on the basis of this tool's output.
+
 A stateless, single-page web application for NHS clinicians to calculate paediatric growth centiles, SDS (Z-scores), and related clinical parameters using validated RCPCH reference data.
 
 **Privacy by design** — no database, no patient data retention. All calculations happen per-request and nothing is stored server-side.
