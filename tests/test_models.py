@@ -102,3 +102,15 @@ class TestExtractMeasurementResult:
         assert "sds" in extracted
         assert isinstance(extracted["centile"], float)
         assert isinstance(extracted["sds"], float)
+
+    def test_none_result_raises_unsupported(self):
+        import pytest
+        from models import UnsupportedCalculationError
+        fake_dict = {
+            "measurement_calculated_values": {
+                "corrected_centile": None,
+                "corrected_sds": None,
+            }
+        }
+        with pytest.raises(UnsupportedCalculationError):
+            extract_measurement_result(fake_dict, 95.0, "height")

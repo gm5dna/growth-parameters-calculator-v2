@@ -230,7 +230,7 @@ class TestCalculateWithPreviousMeasurements:
         data = response.get_json()
         assert "height_velocity" not in data["results"] or data["results"].get("height_velocity") is None
 
-    def test_previous_measurement_invalid_date_skipped(self, client):
+    def test_previous_measurement_after_current_date_rejected(self, client):
         payload = {
             "sex": "male",
             "birth_date": "2020-06-15",
@@ -238,14 +238,13 @@ class TestCalculateWithPreviousMeasurements:
             "height": 96.0,
             "previous_measurements": [
                 {"date": "2024-01-01", "height": 100.0},
-                {"date": "2022-06-15", "height": 88.0},
             ],
         }
         response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
         data = response.get_json()
-        assert data["success"] is True
-        prev = data["results"]["previous_measurements"]
-        assert len(prev) == 1
+        assert data["success"] is False
+        assert data["error_code"] == "ERR_002"
 
 
 class TestCalculateWithBoneAge:
@@ -443,3 +442,214 @@ class TestExportPdfEndpoint:
         response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
         assert response.status_code == 200
         assert response.data[:5] == b"%PDF-"
+
+
+class TestReferenceCapabilityEnforcement:
+    def _payload(self, **overrides):
+        base = {
+            "sex": "female",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+        }
+        base.update(overrides)
+        return base
+
+    def test_male_turner_syndrome_rejected(self, client):
+        response = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(sex="male", reference="turners-syndrome")),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        data = response.get_json()
+        assert data["success"] is False
+        assert data["error_code"] == "ERR_011"
+
+    def test_turner_weight_rejected(self, client):
+        response = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(reference="turners-syndrome", weight=14.0, height=None)),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+        assert response.get_json()["error_code"] == "ERR_011"
+
+    def test_turner_ofc_rejected(self, client):
+        response = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(reference="turners-syndrome", ofc=48.0, height=None)),
+            content_type="application/json",
+        )
+        assert response.status_code == 422
+
+    def test_cdc_bmi_infant_not_echoed(self, client):
+        # CDC does not publish BMI under age 2 — BMI should be dropped with
+        # a validation_messages note rather than a hard 400.
+        payload = {
+            "sex": "male",
+            "birth_date": "2022-06-15",
+            "measurement_date": "2023-06-15",
+            "reference": "cdc",
+            "weight": 10.0,
+            "height": 78.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "bmi" not in data["results"]
+        assert any("bmi" in m.lower() for m in data["results"].get("validation_messages", []))
+
+    def test_chart_data_turner_weight_rejected(self, client):
+        payload = {"sex": "female", "reference": "turners-syndrome", "measurement_method": "weight"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 422
+        assert response.get_json()["error_code"] == "ERR_011"
+
+    def test_chart_data_male_turner_rejected(self, client):
+        payload = {"sex": "male", "reference": "turners-syndrome", "measurement_method": "height"}
+        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 422
+
+
+class TestNonFiniteNumbersAtEndpoint:
+    def test_nan_weight_rejected(self, client):
+        # Raw JSON bodies can include literal NaN — Flask's parser accepts it.
+        body = '{"sex":"female","birth_date":"2020-06-15","measurement_date":"2023-06-15","weight":NaN}'
+        response = client.post("/calculate", data=body, content_type="application/json")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error_code"] == "ERR_004"
+
+    def test_infinity_height_rejected(self, client):
+        body = '{"sex":"female","birth_date":"2020-06-15","measurement_date":"2023-06-15","height":Infinity}'
+        response = client.post("/calculate", data=body, content_type="application/json")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error_code"] == "ERR_005"
+
+
+class TestPreviousMeasurementValidation:
+    def test_previous_height_out_of_range_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [{"date": "2022-06-15", "height": 10000}],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["error_code"] == "ERR_005"
+
+    def test_previous_measurement_before_birth_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [{"date": "2019-01-01", "height": 90.0}],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_002"
+
+    def test_previous_measurement_nan_rejected(self, client):
+        body = (
+            '{"sex":"male","birth_date":"2020-06-15","measurement_date":"2023-06-15",'
+            '"height":96.0,"previous_measurements":[{"date":"2022-06-15","height":NaN}]}'
+        )
+        response = client.post("/calculate", data=body, content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_005"
+
+
+class TestBoneAgeValidation:
+    def test_bone_age_out_of_range_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [{"date": "2023-06-10", "bone_age": 999}],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_bone_age_invalid_standard_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [{"date": "2023-06-10", "bone_age": 7.5, "standard": "bogus"}],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_bone_age_date_before_birth_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [{"date": "2014-01-01", "bone_age": 7.5, "standard": "gp"}],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_002"
+
+
+class TestParentalHeightValidation:
+    def test_maternal_height_out_of_range_rejected(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.0,
+            "maternal_height": 10,
+            "paternal_height": 180,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_parental_heights_happy_path(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "maternal_height": 165.0,
+            "paternal_height": 180.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        mph = response.get_json()["results"].get("mid_parental_height")
+        assert mph is not None
+        assert abs(mph["mid_parental_height"] - 166.0) < 1.0
+
+
+class TestBmiPercentageMedianUsesCorrectedAge:
+    def test_preterm_bmi_has_percentage_median(self, client):
+        # Preterm neonate, chronological ~18 months. rcpchgrowth computes
+        # percentage-of-median from corrected age; confirm the response
+        # surfaces a real number via the measurement result.
+        payload = {
+            "sex": "female",
+            "birth_date": "2022-01-01",
+            "measurement_date": "2023-07-01",
+            "gestation_weeks": 30,
+            "gestation_days": 0,
+            "weight": 9.0,
+            "height": 78.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        data = response.get_json()
+        bmi = data["results"].get("bmi")
+        assert bmi is not None
+        assert bmi["percentage_median"] is not None

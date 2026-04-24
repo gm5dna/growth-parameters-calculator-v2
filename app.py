@@ -19,6 +19,9 @@ from validation import (
     validate_sex,
     validate_reference,
     validate_at_least_one_measurement,
+    validate_reference_supports,
+    validate_bone_age,
+    validate_bone_age_standard,
 )
 from calculations import (
     calculate_age_in_years,
@@ -29,8 +32,12 @@ from calculations import (
     calculate_cbnf_bsa,
     calculate_gh_dose,
 )
-from rcpchgrowth import percentage_median_bmi
-from models import create_measurement, validate_measurement_sds, extract_measurement_result
+from models import (
+    create_measurement,
+    validate_measurement_sds,
+    extract_measurement_result,
+    UnsupportedCalculationError,
+)
 from utils import calculate_mid_parental_height, format_error_response, format_success_response, get_chart_data
 from pdf_utils import GrowthReportPDF
 
@@ -100,6 +107,15 @@ def calculate():
             age_years,
         )
 
+        # Effective age for reference support lookups: corrected when applicable,
+        # since rcpchgrowth performs its internal centile lookup against the
+        # corrected age in that case.
+        if correction_applied:
+            edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+            effective_age_years = calculate_age_in_years(edd, measurement_date)
+        else:
+            effective_age_years = age_years
+
         # Build results
         results = {
             "age_years": round(age_years, 4),
@@ -113,6 +129,7 @@ def calculate():
         for method, value in [("weight", weight), ("height", height), ("ofc", ofc)]:
             if value is None:
                 continue
+            validate_reference_supports(reference, sex, method, effective_age_years)
             measurement_result = create_measurement(
                 sex=sex,
                 birth_date=birth_date,
@@ -123,7 +140,7 @@ def calculate():
                 gestation_weeks=gestation_weeks,
                 gestation_days=gestation_days,
             )
-            extracted = extract_measurement_result(measurement_result, value)
+            extracted = extract_measurement_result(measurement_result, value, method)
             warnings = validate_measurement_sds(extracted["sds"], method)
             all_warnings.extend(warnings)
             results[method] = extracted
@@ -138,33 +155,40 @@ def calculate():
                 edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
                 results["corrected_age_calendar"] = calculate_calendar_age(edd, measurement_date)
 
-        # Auto-calculate BMI when both weight and height are present
+        # Auto-calculate BMI when both weight and height are present.
+        # Skip silently when the selected reference does not support BMI for
+        # this sex/age — the primary height/weight calculations are already in
+        # `results`, and forcing a 400 would deny otherwise-valid output.
         if weight is not None and height is not None:
-            bmi_value = round(weight / ((height / 100) ** 2), 1)
-            bmi_result = create_measurement(
-                sex=sex,
-                birth_date=birth_date,
-                measurement_date=measurement_date,
-                measurement_method="bmi",
-                observation_value=bmi_value,
-                reference=reference,
-                gestation_weeks=gestation_weeks,
-                gestation_days=gestation_days,
-            )
-            bmi_extracted = extract_measurement_result(bmi_result, bmi_value)
-            bmi_warnings = validate_measurement_sds(bmi_extracted["sds"], "bmi")
-            all_warnings.extend(bmi_warnings)
             try:
-                pct_median = percentage_median_bmi(
-                    reference=reference,
-                    age=age_years,
-                    actual_bmi=bmi_value,
+                validate_reference_supports(reference, sex, "bmi", effective_age_years)
+            except ValidationError as e:
+                all_warnings.append(e.message)
+            else:
+                bmi_value = round(weight / ((height / 100) ** 2), 1)
+                bmi_result = create_measurement(
                     sex=sex,
+                    birth_date=birth_date,
+                    measurement_date=measurement_date,
+                    measurement_method="bmi",
+                    observation_value=bmi_value,
+                    reference=reference,
+                    gestation_weeks=gestation_weeks,
+                    gestation_days=gestation_days,
                 )
-                bmi_extracted["percentage_median"] = round(pct_median, 1)
-            except Exception:
-                bmi_extracted["percentage_median"] = None
-            results["bmi"] = bmi_extracted
+                bmi_extracted = extract_measurement_result(bmi_result, bmi_value, "bmi")
+                bmi_warnings = validate_measurement_sds(bmi_extracted["sds"], "bmi")
+                all_warnings.extend(bmi_warnings)
+                # rcpchgrowth computes percentage-of-median against corrected
+                # age already; surface its value rather than re-computing.
+                calc_values = bmi_result["measurement_calculated_values"]
+                pct_median = calc_values.get("corrected_percentage_median_bmi")
+                if pct_median is None:
+                    pct_median = calc_values.get("chronological_percentage_median_bmi")
+                bmi_extracted["percentage_median"] = (
+                    round(pct_median, 1) if pct_median is not None else None
+                )
+                results["bmi"] = bmi_extracted
 
         # BSA
         bsa_result = None
@@ -192,40 +216,63 @@ def calculate():
         if mph:
             results["mid_parental_height"] = mph
 
-        # Process previous measurements
+        # Process previous measurements — apply the same validation as the
+        # current measurement so trend/velocity calculations can't be driven by
+        # clinically impossible values.
+        prev_validators = {
+            "height": validate_height,
+            "weight": validate_weight,
+            "ofc": validate_ofc,
+        }
         processed_prev = []
         for entry in data.get("previous_measurements", []):
-            try:
-                prev_date_str = entry.get("date", "")
-                prev_date = validate_date(prev_date_str, "previous measurement date")
-                if prev_date >= measurement_date:
-                    continue  # Skip dates at or after current measurement
-                prev_age = calculate_age_in_years(birth_date, prev_date)
-                prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
-                # Add corrected age if correction applies at THIS measurement's age
-                # (each previous measurement checks independently against age cutoffs)
-                if gestation_weeks > 0 and should_apply_gestation_correction(gestation_weeks, prev_age):
-                    edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
-                    corrected_prev_age = calculate_age_in_years(edd, prev_date)
-                    if corrected_prev_age >= 0:
-                        prev_result["corrected_age"] = round(corrected_prev_age, 4)
-                for method in ["height", "weight", "ofc"]:
-                    value = entry.get(method)
-                    if value is not None:
-                        value = float(value)
-                        m = create_measurement(
-                            sex=sex, birth_date=birth_date,
-                            measurement_date=prev_date,
-                            measurement_method=method,
-                            observation_value=value,
-                            reference=reference,
-                            gestation_weeks=gestation_weeks,
-                            gestation_days=gestation_days,
-                        )
-                        prev_result[method] = extract_measurement_result(m, value)
-                processed_prev.append(prev_result)
-            except (ValidationError, ValueError, Exception):
-                continue  # Skip invalid entries silently
+            prev_date_str = entry.get("date", "")
+            prev_date = validate_date(prev_date_str, "previous measurement date")
+            if prev_date >= measurement_date:
+                raise ValidationError(
+                    "Previous measurement date must be before the current measurement date.",
+                    ErrorCodes.INVALID_DATE_RANGE,
+                )
+            if prev_date < birth_date:
+                raise ValidationError(
+                    "Previous measurement date cannot be before the date of birth.",
+                    ErrorCodes.INVALID_DATE_RANGE,
+                )
+            prev_age = calculate_age_in_years(birth_date, prev_date)
+            prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
+            # Add corrected age if correction applies at THIS measurement's age
+            # (each previous measurement checks independently against age cutoffs)
+            if gestation_weeks > 0 and should_apply_gestation_correction(gestation_weeks, prev_age):
+                edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+                corrected_prev_age = calculate_age_in_years(edd, prev_date)
+                if corrected_prev_age >= 0:
+                    prev_result["corrected_age"] = round(corrected_prev_age, 4)
+                prev_effective_age = corrected_prev_age
+            else:
+                prev_effective_age = prev_age
+            for method, validator in prev_validators.items():
+                raw_value = entry.get(method)
+                if raw_value is None or raw_value == "":
+                    continue
+                value = validator(raw_value)
+                validate_reference_supports(reference, sex, method, prev_effective_age)
+                m = create_measurement(
+                    sex=sex,
+                    birth_date=birth_date,
+                    measurement_date=prev_date,
+                    measurement_method=method,
+                    observation_value=value,
+                    reference=reference,
+                    gestation_weeks=gestation_weeks,
+                    gestation_days=gestation_days,
+                )
+                extracted = extract_measurement_result(m, value, method)
+                # SDS hard-limit also applies to previous measurements; a bad
+                # historical value would otherwise silently poison the trend
+                # and velocity calculations.
+                all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
+                prev_result[method] = extracted
+            processed_prev.append(prev_result)
 
         if processed_prev:
             results["previous_measurements"] = processed_prev
@@ -255,13 +302,24 @@ def calculate():
             for ba in bone_age_assessments:
                 try:
                     ba_date_str = ba.get("date", "")
-                    ba_date = dt.strptime(ba_date_str, "%Y-%m-%d").date()
-                    ba_value = float(ba["bone_age"])
-                    ba_standard = ba.get("standard", "gp")
+                    ba_date = validate_date(ba_date_str, "bone age assessment date")
+                    ba_value = validate_bone_age(ba.get("bone_age"))
+                    ba_standard = validate_bone_age_standard(ba.get("standard"))
+                    if ba_date < birth_date:
+                        raise ValidationError(
+                            "Bone age assessment date cannot be before the date of birth.",
+                            ErrorCodes.INVALID_DATE_RANGE,
+                        )
                     days_diff = abs((measurement_date - ba_date).days)
                     within_window = days_diff <= BONE_AGE_WINDOW_DAYS
 
                     synthetic_birth = measurement_date - timedelta(days=ba_value * 365.25)
+                    if synthetic_birth > measurement_date:
+                        raise ValidationError(
+                            "Bone age implies a future synthetic birth date.",
+                            ErrorCodes.INVALID_INPUT,
+                        )
+                    validate_reference_supports(reference, sex, "height", ba_value)
                     ba_measurement = create_measurement(
                         sex=sex,
                         birth_date=synthetic_birth,
@@ -270,7 +328,7 @@ def calculate():
                         observation_value=height,
                         reference=reference,
                     )
-                    ba_extracted = extract_measurement_result(ba_measurement, height)
+                    ba_extracted = extract_measurement_result(ba_measurement, height, "height")
 
                     bone_age_result = {
                         "bone_age": ba_value,
@@ -282,6 +340,8 @@ def calculate():
                         "within_window": within_window,
                     }
                     break
+                except (ValidationError, UnsupportedCalculationError):
+                    raise
                 except Exception:
                     continue
 
@@ -294,7 +354,10 @@ def calculate():
         return jsonify(format_success_response(results)), 200
 
     except ValidationError as e:
-        return jsonify(format_error_response(e.message, e.code)), 400
+        status = 422 if e.code == ErrorCodes.UNSUPPORTED_REFERENCE else 400
+        return jsonify(format_error_response(e.message, e.code)), status
+    except UnsupportedCalculationError as e:
+        return jsonify(format_error_response(e.message, e.code)), 422
     except ValueError as e:
         msg = str(e)
         # Distinguish date errors from SDS errors
@@ -328,12 +391,17 @@ def chart_data():
                 ErrorCodes.INVALID_INPUT,
             )
 
+        # Reject unsupported reference/sex/method combinations with a structured
+        # error instead of returning `{centiles: []}` from rcpchgrowth.
+        validate_reference_supports(reference, sex, measurement_method, None)
+
         centiles = get_chart_data(reference, measurement_method, sex)
 
         return jsonify({"success": True, "centiles": centiles}), 200
 
     except ValidationError as e:
-        return jsonify(format_error_response(e.message, e.code)), 400
+        status = 422 if e.code == ErrorCodes.UNSUPPORTED_REFERENCE else 400
+        return jsonify(format_error_response(e.message, e.code)), status
     except Exception as e:
         logger.error("Chart data error: %s", str(e))
         return jsonify(format_error_response(str(e), ErrorCodes.CALCULATION_ERROR)), 400

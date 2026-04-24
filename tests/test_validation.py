@@ -1,4 +1,5 @@
 """Tests for validation module."""
+import math
 import pytest
 from datetime import date
 from validation import (
@@ -11,6 +12,10 @@ from validation import (
     validate_sex,
     validate_reference,
     validate_at_least_one_measurement,
+    validate_parent_height,
+    validate_bone_age,
+    validate_bone_age_standard,
+    validate_reference_supports,
 )
 
 
@@ -188,3 +193,144 @@ class TestValidateAtLeastOneMeasurement:
         with pytest.raises(ValidationError) as exc_info:
             validate_at_least_one_measurement()
         assert exc_info.value.code == "ERR_003"
+
+
+class TestNonFiniteNumbers:
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"), "NaN", "Infinity", "-Infinity"])
+    def test_weight_rejects_non_finite(self, bad):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_weight(bad)
+        assert exc_info.value.code == "ERR_004"
+        assert "finite" in exc_info.value.message.lower()
+
+    @pytest.mark.parametrize("bad", [float("nan"), float("inf"), "NaN", "1e999"])
+    def test_height_rejects_non_finite(self, bad):
+        with pytest.raises(ValidationError):
+            validate_height(bad)
+
+    def test_ofc_rejects_nan(self):
+        with pytest.raises(ValidationError):
+            validate_ofc(float("nan"))
+
+
+class TestValidateParentHeight:
+    def test_valid_height(self):
+        assert validate_parent_height(170.5, "Maternal") == 170.5
+
+    def test_none_returns_none(self):
+        assert validate_parent_height(None, "Maternal") is None
+
+    def test_empty_string_returns_none(self):
+        assert validate_parent_height("", "Paternal") is None
+
+    def test_below_minimum(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_parent_height(50, "Maternal")
+        assert exc_info.value.code == "ERR_010"
+
+    def test_above_maximum(self):
+        with pytest.raises(ValidationError):
+            validate_parent_height(300, "Paternal")
+
+    def test_rejects_non_finite(self):
+        with pytest.raises(ValidationError):
+            validate_parent_height(float("nan"), "Maternal")
+
+
+class TestValidateBoneAge:
+    def test_valid_bone_age(self):
+        assert validate_bone_age(12.0) == 12.0
+
+    def test_none_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_bone_age(None)
+
+    def test_negative_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_bone_age(-1)
+
+    def test_above_maximum_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_bone_age(999)
+
+    def test_non_finite_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_bone_age(float("inf"))
+
+
+class TestValidateBoneAgeStandard:
+    def test_valid_gp(self):
+        assert validate_bone_age_standard("gp") == "gp"
+
+    def test_valid_tw3(self):
+        assert validate_bone_age_standard("tw3") == "tw3"
+
+    def test_default_on_empty(self):
+        assert validate_bone_age_standard(None) == "gp"
+        assert validate_bone_age_standard("") == "gp"
+
+    def test_invalid_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_bone_age_standard("other")
+        assert exc_info.value.code == "ERR_010"
+
+
+class TestValidateReferenceSupports:
+    def test_turner_male_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_reference_supports("turners-syndrome", "male", "height", 10.0)
+        assert exc_info.value.code == "ERR_011"
+
+    def test_turner_weight_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_reference_supports("turners-syndrome", "female", "weight", 10.0)
+        assert exc_info.value.code == "ERR_011"
+        assert "weight" in exc_info.value.message.lower()
+
+    def test_turner_ofc_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("turners-syndrome", "female", "ofc", 5.0)
+
+    def test_turner_height_female_1y_ok(self):
+        validate_reference_supports("turners-syndrome", "female", "height", 1.0)
+
+    def test_turner_under_1y_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_reference_supports("turners-syndrome", "female", "height", 0.5)
+        assert exc_info.value.code == "ERR_011"
+
+    def test_cdc_ofc_above_3y_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_reference_supports("cdc", "male", "ofc", 5.0)
+        assert exc_info.value.code == "ERR_011"
+
+    def test_cdc_bmi_below_2y_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("cdc", "female", "bmi", 1.0)
+
+    def test_trisomy21_ofc_18_1y_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("trisomy-21", "male", "ofc", 18.5)
+
+    def test_uk_who_female_ofc_above_17_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("uk-who", "female", "ofc", 17.5)
+
+    def test_uk_who_male_ofc_17_5_ok(self):
+        # Male upper threshold is 18y, so 17.5 should be accepted.
+        validate_reference_supports("uk-who", "male", "ofc", 17.5)
+
+    def test_uk_who_happy_path(self):
+        validate_reference_supports("uk-who", "male", "height", 10.0)
+        validate_reference_supports("uk-who", "female", "weight", 5.0)
+        validate_reference_supports("uk-who", "male", "bmi", 10.0)
+
+    def test_age_none_skips_age_check(self):
+        # sex/method still validated even with age=None.
+        validate_reference_supports("uk-who", "male", "height", None)
+        with pytest.raises(ValidationError):
+            validate_reference_supports("turners-syndrome", "male", "height", None)
+
+    def test_unknown_reference_raises(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("unknown", "male", "height", 10.0)
