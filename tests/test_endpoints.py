@@ -745,3 +745,144 @@ class TestBmiPercentageMedianUsesCorrectedAge:
         bmi = data["results"].get("bmi")
         assert bmi is not None
         assert bmi["percentage_median"] is not None
+
+
+class TestReferenceBoundaryCases:
+    """Boundary tests around reference age cut-offs."""
+
+    @staticmethod
+    def _payload(age_years, **overrides):
+        from datetime import date, timedelta
+        measurement_date = date(2024, 6, 1)
+        birth_date = measurement_date - timedelta(days=int(age_years * 365.25))
+        body = {
+            "sex": "female",
+            "birth_date": birth_date.isoformat(),
+            "measurement_date": measurement_date.isoformat(),
+        }
+        body.update(overrides)
+        return body
+
+    def test_turner_0_99y_rejected(self, client):
+        r = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(0.99, reference="turners-syndrome", height=72.0)),
+            content_type="application/json",
+        )
+        assert r.status_code == 422
+        assert r.get_json()["error_code"] == "ERR_011"
+
+    def test_turner_1_01y_accepted(self, client):
+        r = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(1.01, reference="turners-syndrome", height=74.0)),
+            content_type="application/json",
+        )
+        assert r.status_code == 200
+
+    def test_cdc_ofc_2_99y_accepted(self, client):
+        r = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(2.99, sex="male", reference="cdc", ofc=48.5)),
+            content_type="application/json",
+        )
+        assert r.status_code == 200
+
+    def test_cdc_ofc_3_01y_rejected(self, client):
+        r = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(3.01, sex="male", reference="cdc", ofc=49.5)),
+            content_type="application/json",
+        )
+        assert r.status_code == 422
+        assert r.get_json()["error_code"] == "ERR_011"
+
+    def test_trisomy21_ofc_17_99y_accepted(self, client):
+        r = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(17.99, sex="male", reference="trisomy-21", ofc=55.5)),
+            content_type="application/json",
+        )
+        assert r.status_code == 200
+
+    def test_trisomy21_ofc_18_01y_rejected(self, client):
+        r = client.post(
+            "/calculate",
+            data=json.dumps(self._payload(18.01, sex="male", reference="trisomy-21", ofc=55.5)),
+            content_type="application/json",
+        )
+        assert r.status_code == 422
+        assert r.get_json()["error_code"] == "ERR_011"
+
+
+class TestBoneAgeAbsentWhenAllFail:
+    def test_bone_age_all_fail_leaves_field_absent(self, client, monkeypatch):
+        """If every bone-age assessment raises a non-ValidationError the
+        response must NOT contain a null `bone_age_height`; a structured
+        validation message is emitted instead."""
+        import app as app_module
+
+        original = app_module.create_measurement
+        call_counter = {"n": 0}
+
+        def flaky_create_measurement(*args, **kwargs):
+            call_counter["n"] += 1
+            # First call handles the main height measurement; subsequent
+            # calls inside the bone-age loop must fail.
+            if call_counter["n"] >= 2:
+                raise RuntimeError("rcpchgrowth internal hiccup")
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(app_module, "create_measurement", flaky_create_measurement)
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [
+                {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
+            ],
+        }
+        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert r.status_code == 200
+        data = r.get_json()["results"]
+        assert "bone_age_height" not in data
+        assert "bone_age_assessments" in data
+        assert any("bone age" in m.lower() for m in data.get("validation_messages", []))
+
+
+class TestCalculateRateLimit:
+    def test_calculate_returns_429_over_budget(self, app):
+        """Confirm /calculate honours the `CALC_RATE_LIMIT` env var.
+
+        The `client` fixture disables the limiter globally for normal tests;
+        re-enable it here with a tight budget and assert that the Nth+1
+        request returns 429.
+        """
+        from app import limiter
+        limiter.enabled = True
+        try:
+            limiter.reset()
+        except Exception:
+            pass
+        c = app.test_client()
+        payload = json.dumps({
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+        })
+        try:
+            last_status = None
+            for _ in range(35):
+                r = c.post("/calculate", data=payload, content_type="application/json")
+                last_status = r.status_code
+                if last_status == 429:
+                    break
+            assert last_status == 429
+        finally:
+            limiter.enabled = False
+            try:
+                limiter.reset()
+            except Exception:
+                pass

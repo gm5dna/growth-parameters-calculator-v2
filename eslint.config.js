@@ -67,6 +67,7 @@ module.exports = [
         downloadChart: "readonly",
         captureChartImages: "readonly",
         copyResultsToClipboard: "readonly",
+        switchChartType: "readonly",
         validateSex: "readonly",
         validateDate: "readonly",
         validateWeight: "readonly",
