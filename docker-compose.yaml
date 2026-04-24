@@ -5,4 +5,8 @@ services:
       - "8080:8080"
     environment:
       - PORT=8080
+      # Uncomment and point at a shared backend (e.g. redis://redis:6379/0)
+      # when running with more than one Gunicorn worker; memory:// is
+      # per-worker and does not share rate-limit state.
+      # - RATELIMIT_STORAGE_URI=redis://redis:6379/0
     restart: unless-stopped

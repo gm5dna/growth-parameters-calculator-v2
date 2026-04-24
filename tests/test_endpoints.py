@@ -389,20 +389,12 @@ class TestIndexEndpoint:
 class TestExportPdfEndpoint:
     def test_basic_pdf_export(self, client):
         payload = {
-            "results": {
-                "age_years": 3.0,
-                "age_calendar": {"years": 3, "months": 0, "days": 0},
-                "gestation_correction_applied": False,
-                "weight": {"value": 14.5, "centile": 50.1, "sds": 0.03},
-                "height": {"value": 96.0, "centile": 25.5, "sds": -0.67},
-                "validation_messages": [],
-            },
-            "patient_info": {
-                "sex": "male",
-                "birth_date": "2020-06-15",
-                "measurement_date": "2023-06-15",
-                "reference": "uk-who",
-            },
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "height": 96.0,
+            "patient_info": {},
         }
         response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
         assert response.status_code == 200
@@ -410,14 +402,19 @@ class TestExportPdfEndpoint:
         assert response.data[:5] == b"%PDF-"
         assert "attachment" in response.headers.get("Content-Disposition", "")
 
-    def test_pdf_missing_results(self, client):
-        payload = {"patient_info": {"sex": "male"}}
+    def test_pdf_missing_measurements(self, client):
+        # /export-pdf now recalculates, so missing measurements fails validation.
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "patient_info": {},
+        }
         response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
         assert response.status_code == 400
 
-    def test_pdf_missing_patient_info(self, client):
-        payload = {"results": {"age_years": 3.0, "validation_messages": []}}
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+    def test_pdf_missing_required_fields(self, client):
+        response = client.post("/export-pdf", data=json.dumps({}), content_type="application/json")
         assert response.status_code == 400
 
     def test_pdf_with_chart_images(self, client):
@@ -429,14 +426,11 @@ class TestExportPdfEndpoint:
         img.save(buf, format='PNG')
         tiny_png = base64.b64encode(buf.getvalue()).decode()
         payload = {
-            "results": {
-                "age_years": 3.0,
-                "age_calendar": {"years": 3, "months": 0, "days": 0},
-                "gestation_correction_applied": False,
-                "weight": {"value": 14.5, "centile": 50.1, "sds": 0.03},
-                "validation_messages": [],
-            },
-            "patient_info": {"sex": "male", "birth_date": "2020-06-15", "measurement_date": "2023-06-15", "reference": "uk-who"},
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": {},
             "chart_images": {"height": f"data:image/png;base64,{tiny_png}"},
         }
         response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
@@ -631,6 +625,104 @@ class TestParentalHeightValidation:
         mph = response.get_json()["results"].get("mid_parental_height")
         assert mph is not None
         assert abs(mph["mid_parental_height"] - 166.0) < 1.0
+
+
+class TestSecurityHardening:
+    def test_rejects_non_json_content_type(self, client):
+        response = client.post("/calculate", data="not-json", content_type="text/plain")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_rejects_non_dict_json(self, client):
+        response = client.post("/calculate", data="[]", content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_oversized_payload_returns_413(self, client, app):
+        app.config["MAX_CONTENT_LENGTH"] = 256
+        try:
+            big_body = json.dumps({
+                "sex": "male",
+                "birth_date": "2020-06-15",
+                "measurement_date": "2023-06-15",
+                "weight": 14.5,
+                "padding": "x" * 512,
+            })
+            response = client.post("/calculate", data=big_body, content_type="application/json")
+            assert response.status_code == 413
+            assert response.get_json()["error_code"] == "ERR_010"
+        finally:
+            app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+
+class TestExportPdfIgnoresClientResults:
+    def test_client_results_cannot_override_server_calculation(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "height": 96.0,
+            "patient_info": {},
+            # Forged results should be completely ignored; server recalculates.
+            "results": {
+                "age_years": 99.0,
+                "weight": {"value": 1.0, "centile": 99.9, "sds": 6.0},
+            },
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        # The forged 99y age would otherwise trip the MAX_AGE_YEARS check.
+        assert response.data[:5] == b"%PDF-"
+
+    def test_client_cannot_override_reference_in_patient_info(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            # Forged reference via patient_info should not silently switch
+            # which population the report is generated against.
+            "patient_info": {"reference": "turners-syndrome"},
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        # Recalculation uses the top-level reference (unset -> uk-who), so
+        # the PDF is built from the server-authoritative data.
+        assert response.status_code == 200
+        assert response.data[:5] == b"%PDF-"
+
+    def test_oversized_chart_image_rejected_without_breaking_pdf(self, client):
+        # 4 MB of data exceeds the default 2 MB per-image cap but fits within
+        # the default 10 MB request-body cap, so the request should succeed
+        # and the PDF should still be produced — just without the bad chart.
+        import base64 as _b64
+        big_garbage = _b64.b64encode(b"\x00" * (4 * 1024 * 1024)).decode()
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": {},
+            "chart_images": {"height": f"data:image/png;base64,{big_garbage}"},
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        assert response.data[:5] == b"%PDF-"
+
+    def test_non_png_data_url_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": {},
+            "chart_images": {"height": "data:image/jpeg;base64,QUJDRA=="},
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        # PDF should still generate; the bad image is simply skipped and
+        # recorded on the report's rejected_images list.
+        assert response.status_code == 200
+        assert response.data[:5] == b"%PDF-"
 
 
 class TestBmiPercentageMedianUsesCorrectedAge:

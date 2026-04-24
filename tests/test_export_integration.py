@@ -8,8 +8,8 @@ from io import BytesIO
 
 class TestExportWorkflows:
     def test_full_pdf_export_workflow(self, client):
-        """Calculate then export PDF with all data."""
-        calc_payload = {
+        """Submit the measurement payload; the server recalculates server-side."""
+        payload = {
             "sex": "male",
             "birth_date": "2020-06-15",
             "measurement_date": "2023-06-15",
@@ -18,27 +18,15 @@ class TestExportWorkflows:
             "ofc": 50.0,
             "maternal_height": 165.0,
             "paternal_height": 178.0,
+            "patient_info": {},
         }
-        calc_resp = client.post("/calculate", data=json.dumps(calc_payload), content_type="application/json")
-        calc_data = calc_resp.get_json()
-        assert calc_data["success"] is True
-
-        pdf_payload = {
-            "results": calc_data["results"],
-            "patient_info": {
-                "sex": "male",
-                "birth_date": "2020-06-15",
-                "measurement_date": "2023-06-15",
-                "reference": "uk-who",
-            },
-        }
-        pdf_resp = client.post("/export-pdf", data=json.dumps(pdf_payload), content_type="application/json")
+        pdf_resp = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
         assert pdf_resp.status_code == 200
         assert pdf_resp.data[:5] == b"%PDF-"
 
     def test_pdf_with_advanced_results(self, client):
-        """PDF export with previous measurements, bone age, BSA."""
-        calc_payload = {
+        """Advanced features (previous, bone age, BSA) are recalculated for the PDF."""
+        payload = {
             "sex": "male",
             "birth_date": "2015-06-15",
             "measurement_date": "2023-06-15",
@@ -53,15 +41,9 @@ class TestExportWorkflows:
             "bone_age_assessments": [
                 {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
             ],
+            "patient_info": {},
         }
-        calc_resp = client.post("/calculate", data=json.dumps(calc_payload), content_type="application/json")
-        calc_data = calc_resp.get_json()
-
-        pdf_payload = {
-            "results": calc_data["results"],
-            "patient_info": {"sex": "male", "birth_date": "2015-06-15", "measurement_date": "2023-06-15", "reference": "uk-who"},
-        }
-        pdf_resp = client.post("/export-pdf", data=json.dumps(pdf_payload), content_type="application/json")
+        pdf_resp = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
         assert pdf_resp.status_code == 200
         assert pdf_resp.data[:5] == b"%PDF-"
         assert len(pdf_resp.data) > 1000
@@ -73,21 +55,18 @@ class TestExportWorkflows:
         img.save(buf, format='PNG')
         png_b64 = base64.b64encode(buf.getvalue()).decode()
 
-        pdf_payload = {
-            "results": {
-                "age_years": 3.0,
-                "age_calendar": {"years": 3, "months": 0, "days": 0},
-                "gestation_correction_applied": False,
-                "weight": {"value": 14.5, "centile": 50.1, "sds": 0.03},
-                "validation_messages": [],
-            },
-            "patient_info": {"sex": "male", "birth_date": "2020-06-15", "measurement_date": "2023-06-15", "reference": "uk-who"},
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": {},
             "chart_images": {
                 "height": f"data:image/png;base64,{png_b64}",
                 "weight": f"data:image/png;base64,{png_b64}",
             },
         }
-        pdf_resp = client.post("/export-pdf", data=json.dumps(pdf_payload), content_type="application/json")
+        pdf_resp = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
         assert pdf_resp.status_code == 200
         assert pdf_resp.data[:5] == b"%PDF-"
 

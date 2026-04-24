@@ -828,16 +828,24 @@ function dismissDisclaimer() {
 
 /* ------------------------------------------------------------------ */
 /*  localStorage persistence                                          */
+/*                                                                    */
+/*  Only non-identifying UI preferences are persisted. DOBs,          */
+/*  measurement dates, measurement values, parental heights,          */
+/*  previous measurements, and bone-age assessments are deliberately  */
+/*  NOT written to localStorage — the app advertises no patient data  */
+/*  retention and we honour that client-side too.                     */
 /* ------------------------------------------------------------------ */
+
+const PERSISTED_PREFERENCE_KEYS = ['reference'];
 
 function saveFormState() {
   const state = {
     sex: document.querySelector('input[name="sex"]:checked')?.value || '',
   };
 
-  FIELD_IDS.forEach(function (id) {
+  PERSISTED_PREFERENCE_KEYS.forEach(function (id) {
     const el = document.getElementById(id);
-    if (el) state[id] = el.value;
+    if (el && el.value) state[id] = el.value;
   });
 
   var ghCheck = document.getElementById('ghTreatment');
@@ -845,9 +853,6 @@ function saveFormState() {
 
   var modeCheck = document.getElementById('modeToggle');
   if (modeCheck) state.advancedMode = modeCheck.checked;
-
-  state.previousMeasurements = getPreviousMeasurements();
-  state.boneAgeAssessments = getBoneAgeAssessments();
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -868,7 +873,6 @@ function restoreFormState() {
 
   if (!state) return;
 
-  // Restore sex radio
   if (state.sex === 'male') {
     const el = document.getElementById('sexMale');
     if (el) el.checked = true;
@@ -877,47 +881,21 @@ function restoreFormState() {
     if (el) el.checked = true;
   }
 
-  // Restore text/date/number fields
-  FIELD_IDS.forEach(function (id) {
-    if (state[id] !== undefined && state[id] !== '') {
+  PERSISTED_PREFERENCE_KEYS.forEach(function (id) {
+    if (state[id]) {
       const el = document.getElementById(id);
       if (el) el.value = state[id];
     }
   });
 
-  // Restore GH treatment checkbox
   if (state.ghTreatment) {
     var ghEl = document.getElementById('ghTreatment');
     if (ghEl) ghEl.checked = true;
   }
 
-  // Restore advanced mode toggle
   if (state.advancedMode) {
     var modeEl = document.getElementById('modeToggle');
     if (modeEl) { modeEl.checked = true; handleModeToggle(); }
-  }
-
-  // Restore previous measurements
-  if (state.previousMeasurements && state.previousMeasurements.length > 0) {
-    state.previousMeasurements.forEach(function(m) {
-      addPrevMeasurementRow(m.date || '', m.height || '', m.weight || '', m.ofc || '');
-    });
-    // Expand the section
-    var prevContent = document.getElementById('prevMeasurementsContent');
-    var prevToggle = document.getElementById('prevMeasurementsToggle');
-    if (prevContent) prevContent.hidden = false;
-    if (prevToggle) prevToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
-  }
-
-  // Restore bone age assessments
-  if (state.boneAgeAssessments && state.boneAgeAssessments.length > 0) {
-    state.boneAgeAssessments.forEach(function(ba) {
-      addBoneAgeRow(ba.date || '', ba.bone_age || '', ba.standard || 'gp');
-    });
-    var baContent = document.getElementById('boneAgeContent');
-    var baToggle = document.getElementById('boneAgeToggle');
-    if (baContent) baContent.hidden = false;
-    if (baToggle) baToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
   }
 }
 

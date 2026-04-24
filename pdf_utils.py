@@ -1,5 +1,7 @@
 """PDF report generation using ReportLab."""
 import base64
+import logging
+import os
 from io import BytesIO
 from datetime import datetime as dt
 
@@ -18,6 +20,53 @@ from reportlab.platypus import (
     KeepTogether,
 )
 from reportlab.pdfgen.canvas import Canvas as BaseCanvas
+from PIL import Image as PILImage, UnidentifiedImageError
+
+logger = logging.getLogger(__name__)
+
+# Per-image caps for chart uploads. Defaults can be overridden via env so
+# ops can tighten them without redeploying code.
+MAX_CHART_IMAGE_BYTES = int(os.environ.get("MAX_CHART_IMAGE_BYTES", 2 * 1024 * 1024))  # 2 MB
+MAX_CHART_IMAGE_DIM = int(os.environ.get("MAX_CHART_IMAGE_DIM", 4000))  # px
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_PNG_DATA_URL_PREFIX = "data:image/png;base64,"
+
+
+def _decode_chart_image(data_url):
+    """Validate a chart-image data URL and return a PIL Image ready to embed.
+
+    Raises ValueError with a human-readable message when the payload fails
+    any of the format/size/dimension checks. The caller surfaces the message
+    as a structured warning.
+    """
+    if not isinstance(data_url, str) or not data_url.startswith(_PNG_DATA_URL_PREFIX):
+        raise ValueError("Only PNG data URLs are accepted.")
+    encoded = data_url[len(_PNG_DATA_URL_PREFIX):]
+    try:
+        image_bytes = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError) as e:
+        raise ValueError("Chart image is not valid base64.") from e
+    if len(image_bytes) > MAX_CHART_IMAGE_BYTES:
+        raise ValueError(
+            f"Chart image exceeds the {MAX_CHART_IMAGE_BYTES // 1024} KB limit."
+        )
+    if not image_bytes.startswith(_PNG_SIGNATURE):
+        raise ValueError("Chart image is not a valid PNG.")
+    try:
+        img = PILImage.open(BytesIO(image_bytes))
+        img.verify()
+        # verify() closes the file pointer; re-open for usage.
+        img = PILImage.open(BytesIO(image_bytes))
+        img.load()
+    except (UnidentifiedImageError, OSError) as e:
+        raise ValueError("Chart image could not be decoded.") from e
+    if img.format != "PNG":
+        raise ValueError("Chart image must be PNG.")
+    if img.width > MAX_CHART_IMAGE_DIM or img.height > MAX_CHART_IMAGE_DIM:
+        raise ValueError(
+            f"Chart image exceeds the {MAX_CHART_IMAGE_DIM} px dimension limit."
+        )
+    return img, image_bytes
 
 # Colour palette
 BLUE_ACCENT = colors.HexColor("#096b78")
@@ -85,6 +134,7 @@ class GrowthReportPDF:
         self.results = results
         self.patient_info = patient_info
         self.chart_images = chart_images or {}
+        self.rejected_images = []
         self._init_styles()
 
     def _init_styles(self):
@@ -389,42 +439,41 @@ class GrowthReportPDF:
         story.append(Spacer(1, 8))
 
     def _add_chart_images(self, story):
-        """Decode base64 data URL chart images and embed in PDF."""
+        """Decode base64 data URL chart images and embed in PDF.
+
+        Rejected images are recorded on ``self.rejected_images`` so the
+        caller can surface a structured warning instead of silently
+        omitting charts from the report.
+        """
         if not self.chart_images:
             return
 
         first_chart = True
         for chart_name, data_url in self.chart_images.items():
             try:
-                # Parse data URL: "data:image/png;base64,..."
-                if "," in data_url:
-                    encoded = data_url.split(",", 1)[1]
-                else:
-                    encoded = data_url
-
-                image_bytes = base64.b64decode(encoded)
-                image_buffer = BytesIO(image_bytes)
-
-                img = Image(
-                    image_buffer,
-                    width=15 * cm,
-                    height=10 * cm,
-                    kind="proportional",
-                )
-                chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
-                label = chart_labels.get(chart_name, chart_name.capitalize())
-                block = []
-                if first_chart:
-                    block.append(Paragraph("Growth Charts", self.styles["SectionTitle"]))
-                    first_chart = False
-                block.append(Paragraph(f"<b>{label}</b>", self.styles["Normal"]))
-                block.append(Spacer(1, 4))
-                block.append(img)
-                block.append(Spacer(1, 12))
-                story.append(KeepTogether(block))
-            except Exception:
-                # Skip charts that fail to decode
+                _, image_bytes = _decode_chart_image(data_url)
+            except ValueError as e:
+                logger.warning("Skipping chart image %s: %s", chart_name, e)
+                self.rejected_images.append({"chart": chart_name, "reason": str(e)})
                 continue
+
+            img = Image(
+                BytesIO(image_bytes),
+                width=15 * cm,
+                height=10 * cm,
+                kind="proportional",
+            )
+            chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
+            label = chart_labels.get(chart_name, chart_name.capitalize())
+            block = []
+            if first_chart:
+                block.append(Paragraph("Growth Charts", self.styles["SectionTitle"]))
+                first_chart = False
+            block.append(Paragraph(f"<b>{label}</b>", self.styles["Normal"]))
+            block.append(Spacer(1, 4))
+            block.append(img)
+            block.append(Spacer(1, 12))
+            story.append(KeepTogether(block))
 
     def _add_previous_measurements(self, story):
         """Add previous measurements table on a new page."""
