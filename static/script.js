@@ -999,7 +999,12 @@ function updateGhDisplay() {
   if (currentWeightKg) {
     lines.push('= ' + ((currentGhDose * 1000) / currentWeightKg).toFixed(1) + ' mcg/kg/day');
   }
-  resultsDiv.innerHTML = lines.map(function(l) { return '<div>' + l + '</div>'; }).join('');
+  resultsDiv.replaceChildren();
+  lines.forEach(function (line) {
+    var div = document.createElement('div');
+    div.textContent = line;
+    resultsDiv.appendChild(div);
+  });
   // Show pen range info
   var pen = getSelectedPen();
   var infoEl = document.getElementById('ghPenInfo');
@@ -1394,6 +1399,14 @@ if (typeof module !== 'undefined' && module.exports) {
     addBoneAgeRow,
     getBoneAgeAssessments,
     updateGhDisplay,
+    __testHooks: {
+      setGhState: function (state) {
+        currentGhDose = state.dose;
+        currentBsa = state.bsa;
+        currentWeightKg = state.weightKg;
+      },
+      updateGhDisplay,
+    },
     showToast,
     handleCopyResults,
     handleExportPdf,
