@@ -851,6 +851,99 @@ class TestBoneAgeAbsentWhenAllFail:
         assert any("bone age" in m.lower() for m in data.get("validation_messages", []))
 
 
+class TestSecurityHeaders:
+    def test_csp_header_present_on_index(self, client):
+        r = client.get("/")
+        assert r.status_code == 200
+        csp = r.headers.get("Content-Security-Policy", "")
+        assert "default-src 'self'" in csp
+        assert "script-src 'self'" in csp
+        assert "frame-ancestors 'none'" in csp
+
+    def test_csp_header_present_on_json_endpoints(self, client):
+        import json as _json
+        r = client.post(
+            "/calculate",
+            data=_json.dumps({
+                "sex": "male",
+                "birth_date": "2020-06-15",
+                "measurement_date": "2023-06-15",
+                "weight": 14.5,
+            }),
+            content_type="application/json",
+        )
+        assert "Content-Security-Policy" in r.headers
+
+    def test_other_security_headers(self, client):
+        r = client.get("/health")
+        assert r.headers.get("X-Content-Type-Options") == "nosniff"
+        assert "Referrer-Policy" in r.headers
+
+
+class TestChartImagesCap:
+    def test_too_many_chart_images_rejected(self, client):
+        import base64 as _b64
+        import json as _json
+        from io import BytesIO as _BytesIO
+
+        from PIL import Image as _PILImage
+
+        img = _PILImage.new("RGB", (2, 2), color="white")
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        png_b64 = _b64.b64encode(buf.getvalue()).decode()
+        chart_images = {f"chart_{i}": f"data:image/png;base64,{png_b64}" for i in range(20)}
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": {},
+            "chart_images": chart_images,
+        }
+        r = client.post("/export-pdf", data=_json.dumps(payload), content_type="application/json")
+        assert r.status_code == 400
+        assert r.get_json()["error_code"] == "ERR_010"
+
+
+class TestPatientInfoAllowList:
+    def test_unreserved_patient_info_key_is_dropped(self, client):
+        """Unknown display fields in patient_info are not carried through to the PDF.
+
+        The allow-list is empty today, so any client-supplied key is ignored.
+        This guards against a future PDF field being added without also
+        updating the server allow-list.
+        """
+        import json as _json
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": {
+                "patient_name": "<script>alert(1)</script>",
+                "nhs_number": "9999999999",
+                "clinician": "Dr Forged",
+            },
+        }
+        r = client.post("/export-pdf", data=_json.dumps(payload), content_type="application/json")
+        # Happy path: PDF still generates; the forged fields are simply dropped.
+        assert r.status_code == 200
+        assert r.data[:5] == b"%PDF-"
+
+    def test_non_object_patient_info_rejected(self, client):
+        import json as _json
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": ["not", "an", "object"],
+        }
+        r = client.post("/export-pdf", data=_json.dumps(payload), content_type="application/json")
+        assert r.status_code == 400
+
+
 class TestCalculateRateLimit:
     def test_calculate_returns_429_over_budget(self, app):
         """Confirm /calculate honours the `CALC_RATE_LIMIT` env var.

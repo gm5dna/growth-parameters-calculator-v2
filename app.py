@@ -68,12 +68,50 @@ limiter = Limiter(
 _CALC_RATE_LIMIT = os.environ.get("CALC_RATE_LIMIT", "30 per minute")
 _PDF_RATE_LIMIT = os.environ.get("PDF_RATE_LIMIT", "10 per minute")
 
+# Allow-list for client-supplied `patient_info` on /export-pdf. Today the PDF
+# renderer reads only the four server-authoritative fields (sex, birth_date,
+# measurement_date, reference), so this set is deliberately empty: the client
+# cannot contribute any patient_info key. Extend this set as new display-only
+# fields are added to the PDF (e.g. {"patient_name", "clinician"}).
+_ALLOWED_CLIENT_PATIENT_INFO_KEYS = frozenset()
+
+# Cap on the number of chart images accepted per export. Each image goes
+# through PIL + ReportLab synchronously; without a count cap an attacker can
+# submit many small invalid images inside a single <10 MB request body.
+_MAX_CHART_IMAGES = int(os.environ.get("MAX_CHART_IMAGES", 10))
+
 
 @app.errorhandler(413)
 def request_entity_too_large(_error):
     return jsonify(format_error_response(
         "Request body is too large.", ErrorCodes.INVALID_INPUT
     )), 413
+
+
+# Conservative Content-Security-Policy. Chart.js + its annotation plugin are
+# self-hosted under /static/vendor/, so script-src stays strict ('self'). The
+# Google Fonts stylesheet (loaded from fonts.googleapis.com) pulls font files
+# from fonts.gstatic.com. 'unsafe-inline' on style-src is kept until the
+# remaining inline style attributes in index.html are audited out.
+_CSP_POLICY = "; ".join([
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+])
+
+
+@app.after_request
+def _set_security_headers(response):
+    response.headers.setdefault("Content-Security-Policy", _CSP_POLICY)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
 
 
 def _parse_json_request():
@@ -475,18 +513,27 @@ def export_pdf():
         return jsonify(format_error_response(
             "Patient information is required.", ErrorCodes.INVALID_INPUT
         )), 400
-    # Allow the client to add non-safety-critical display metadata
-    # (name/identifier/clinician); reject anything that would override the
-    # authoritative values computed here.
+    # Merge only allow-listed display fields from the client — never the four
+    # safety-critical keys (sex, birth_date, measurement_date, reference),
+    # which are always the server-recomputed values.
     client_patient = data.get("patient_info") or {}
-    for reserved in ("sex", "birth_date", "measurement_date", "reference"):
-        client_patient.pop(reserved, None)
-    patient.update(client_patient)
+    if not isinstance(client_patient, dict):
+        return jsonify(format_error_response(
+            "patient_info must be an object.", ErrorCodes.INVALID_INPUT
+        )), 400
+    for key in _ALLOWED_CLIENT_PATIENT_INFO_KEYS:
+        if key in client_patient:
+            patient[key] = client_patient[key]
 
     chart_images = data.get("chart_images", {})
     if not isinstance(chart_images, dict):
         return jsonify(format_error_response(
             "chart_images must be an object.", ErrorCodes.INVALID_INPUT
+        )), 400
+    if len(chart_images) > _MAX_CHART_IMAGES:
+        return jsonify(format_error_response(
+            f"At most {_MAX_CHART_IMAGES} chart images are allowed per export.",
+            ErrorCodes.INVALID_INPUT,
         )), 400
 
     try:

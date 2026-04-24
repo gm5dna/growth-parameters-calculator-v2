@@ -48,13 +48,16 @@ jobs:
         run: npm run lint
 
       - name: Backend tests
-        run: python -m pytest -q --cov=. --cov-report=term-missing
+        run: python -m pytest -q --cov=. --cov-report=term-missing --cov-fail-under=90
 
       - name: Frontend tests
         run: npm test -- --ci
 
       - name: npm audit
         run: npm audit --audit-level=high
+
+      - name: pip-audit
+        run: python -m pip_audit -r requirements.txt -r requirements-dev.txt --strict
 
       - name: Docker build
         run: docker build -t growth-calc:ci .

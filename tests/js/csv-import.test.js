@@ -91,4 +91,11 @@ describe('parsePreviousMeasurementsCsv', () => {
     expect(result.errors).toEqual([]);
     expect(result.rows).toHaveLength(1);
   });
+
+  test('strips leading UTF-8 BOM so Excel-exported files parse', () => {
+    const csv = '﻿date,height,weight,ofc\n2023-01-01,100,15,48';
+    const result = parsePreviousMeasurementsCsv(csv);
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toEqual([['2023-01-01', '100', '15', '48']]);
+  });
 });
