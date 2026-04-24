@@ -86,7 +86,9 @@ module.exports = [
       "no-prototype-builtins": "off",
       "no-inner-declarations": "off",
       "no-useless-escape": "off",
-      "no-redeclare": "warn",
+      // Classic browser scripts intentionally expose shared names on window until
+      // Task 5 converts the app code to ES modules. Keep local redeclare checks on.
+      "no-redeclare": ["warn", { builtinGlobals: false }],
       "no-undef": "error",
     },
   },

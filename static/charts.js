@@ -850,14 +850,14 @@ function renderChart(centiles, ageRange, chartType) {
               }
 
               // Current measurement tooltip (existing)
-              var measurement = lastResults[currentChartType];
-              var name = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
-              var unit = CHART_UNITS[currentChartType] || '';
+              var currentMeasurement = lastResults[currentChartType];
+              var currentName = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
+              var currentUnit = CHART_UNITS[currentChartType] || '';
               return [
                 'Age: ' + point.x.toFixed(2) + ' years',
-                name + ': ' + point.y + ' ' + unit,
-                'Centile: ' + (measurement && measurement.centile !== null ? measurement.centile.toFixed(1) + '%' : 'N/A'),
-                'SDS: ' + (measurement && measurement.sds !== null ? (measurement.sds >= 0 ? '+' : '') + measurement.sds.toFixed(2) : 'N/A'),
+                currentName + ': ' + point.y + ' ' + currentUnit,
+                'Centile: ' + (currentMeasurement && currentMeasurement.centile !== null ? currentMeasurement.centile.toFixed(1) + '%' : 'N/A'),
+                'SDS: ' + (currentMeasurement && currentMeasurement.sds !== null ? (currentMeasurement.sds >= 0 ? '+' : '') + currentMeasurement.sds.toFixed(2) : 'N/A'),
               ];
             },
           },

@@ -937,8 +937,8 @@ function displayResults(results) {
       updateGhDisplay();
     }
   } else {
-    var ghCalc = document.getElementById('ghCalculator');
-    if (ghCalc) ghCalc.hidden = true;
+    var ghCalculator = document.getElementById('ghCalculator');
+    if (ghCalculator) ghCalculator.hidden = true;
   }
 
   // --- Warnings ---
