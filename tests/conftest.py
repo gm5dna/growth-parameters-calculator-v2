@@ -10,10 +10,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 @pytest.fixture
 def app():
     """Create Flask application for testing."""
-    from app import app as flask_app
+    from app import app as flask_app, limiter
     flask_app.config["TESTING"] = True
     flask_app.config["RATELIMIT_ENABLED"] = False
-    return flask_app
+    # The RATELIMIT_ENABLED flag is checked at request time for future
+    # decorators, but already-registered in-memory counters can persist
+    # across tests; reset them each fixture construction to keep the
+    # PDF-heavy integration tests from tripping a 429.
+    limiter.enabled = False
+    try:
+        limiter.reset()
+    except Exception:
+        pass
+    yield flask_app
+    limiter.enabled = True
 
 
 @pytest.fixture

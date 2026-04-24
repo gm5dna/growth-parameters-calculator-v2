@@ -48,9 +48,10 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+pip install -r requirements-dev.txt       # only needed for running tests
 npm install
 
-# Run the development server
+# Run the development server (debug mode only when FLASK_DEBUG=1)
 python app.py
 ```
 
@@ -102,7 +103,7 @@ npm run test:coverage                  # With coverage
 python -m pytest -v && npm test
 ```
 
-**Current test suite:** 177 backend tests (97% coverage), 33 frontend tests.
+**Current test suite:** 235+ backend tests, 34+ frontend tests — counts grow with each change; see CI for live numbers.
 
 ## Tech Stack
 
@@ -144,12 +145,14 @@ tests/
 
 ## Growth References
 
-| Reference | Age Range | Population |
-|-----------|-----------|------------|
-| UK-WHO | 0–20 years | General UK (default) |
-| Turner Syndrome | 1–20 years | 45,X females |
-| Trisomy 21 | 0–20 years | Down syndrome |
-| CDC | 0–20 years | US population |
+| Reference | Sexes | Supported methods | Age Range | Notes |
+|-----------|-------|-------------------|-----------|-------|
+| UK-WHO | male, female | height, weight, OFC, BMI | 23 weeks gestation – 20 years | OFC to 17y (female) / 18y (male); BMI from term |
+| Turner Syndrome | female only | height | 1–20 years | Girls and women with 45,X karyotype |
+| Trisomy 21 | male, female | height, weight, OFC, BMI | 0–20 years | OFC to 18y; BMI to 18.82y |
+| CDC | male, female | height, weight, OFC, BMI | 0–20 years | OFC to 3y; BMI from 2y |
+
+Unsupported reference / sex / method / age combinations are rejected with HTTP 422 `ERR_011` rather than returning empty or null results.
 
 ## Clinical Safety
 
@@ -163,17 +166,28 @@ This is an **experimental** application for **educational and research purposes 
 
 ## Deployment
 
-The application is configured for deployment on [Render.com](https://render.com):
+Production runs under Gunicorn (matching the Dockerfile). Never use `python app.py` in production — it starts Flask's built-in server and can expose the Werkzeug debugger when `FLASK_DEBUG=1`.
 
 ```bash
 # runtime.txt specifies Python version
 python-3.12.8
 
-# Start command
-python app.py
+# Production start command (used by the Docker image)
+gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120 --access-logfile - app:app
 ```
 
-The app reads `PORT` from the environment (default 8080).
+### Environment variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `PORT` | Listening port | `8080` |
+| `FLASK_DEBUG` | `1` enables Flask's debug server (dev only, binds to `127.0.0.1`) | unset |
+| `MAX_UPLOAD_BYTES` | Maximum request body size in bytes | `10485760` (10 MB) |
+| `MAX_CHART_IMAGE_BYTES` | Maximum decoded size of any single chart PNG | `2097152` (2 MB) |
+| `MAX_CHART_IMAGE_DIM` | Maximum width/height of any single chart PNG (pixels) | `4000` |
+| `RATELIMIT_STORAGE_URI` | Flask-Limiter storage URI (e.g. `redis://...`) — required when running multiple workers | `memory://` |
+
+With more than one Gunicorn worker, configure a shared rate-limiter backend (e.g. `RATELIMIT_STORAGE_URI=redis://redis:6379/0`); `memory://` is per-worker and resets on restart.
 
 ## Acknowledgements
 
