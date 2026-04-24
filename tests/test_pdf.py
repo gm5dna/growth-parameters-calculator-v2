@@ -88,3 +88,103 @@ class TestGrowthReportPDF:
         pdf = GrowthReportPDF(sample_results, sample_patient_info)
         buffer = pdf.generate()
         assert buffer.read()[:5] == b"%PDF-"
+
+
+class TestDecodeChartImage:
+    """Direct unit tests for `_decode_chart_image` edge cases.
+
+    These cover paths that are otherwise only exercised end-to-end via
+    `/export-pdf`, and pin the decompression-bomb guard in place.
+    """
+
+    @staticmethod
+    def _valid_png_data_url(size=(10, 10)):
+        import base64
+
+        from PIL import Image as PILImage
+        img = PILImage.new("RGB", size, color="white")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    def test_valid_png_returns_image_and_bytes(self):
+        from pdf_utils import _decode_chart_image
+        img, raw = _decode_chart_image(self._valid_png_data_url())
+        assert img.format == "PNG"
+        assert len(raw) > 0
+
+    def test_non_png_prefix_rejected(self):
+        from pdf_utils import _decode_chart_image
+        with pytest.raises(ValueError, match="PNG data URLs"):
+            _decode_chart_image("data:image/jpeg;base64,/9j/4AAQ")
+
+    def test_non_string_rejected(self):
+        from pdf_utils import _decode_chart_image
+        with pytest.raises(ValueError, match="PNG data URLs"):
+            _decode_chart_image(None)
+
+    def test_malformed_base64_rejected(self):
+        from pdf_utils import _decode_chart_image
+        with pytest.raises(ValueError, match="base64"):
+            _decode_chart_image("data:image/png;base64,not!!base64")
+
+    def test_bytes_exceeding_cap_rejected(self, monkeypatch):
+        import base64
+
+        import pdf_utils
+        # Shrink the cap so we can exercise the check cheaply.
+        monkeypatch.setattr(pdf_utils, "MAX_CHART_IMAGE_BYTES", 64)
+        payload = "data:image/png;base64," + base64.b64encode(b"\x00" * 256).decode()
+        with pytest.raises(ValueError, match="KB limit"):
+            pdf_utils._decode_chart_image(payload)
+
+    def test_wrong_magic_but_valid_base64_rejected(self):
+        import base64
+
+        from pdf_utils import _decode_chart_image
+        # Base64-encoded JPEG magic — bytes decode but fail the PNG signature check.
+        payload = "data:image/png;base64," + base64.b64encode(b"\xff\xd8\xff\xe0garbage" * 4).decode()
+        with pytest.raises(ValueError, match="valid PNG"):
+            _decode_chart_image(payload)
+
+    def test_oversized_dimensions_rejected_without_decompression(self):
+        """A PNG IHDR declaring huge dimensions must be rejected BEFORE pixels decode.
+
+        We build a minimal PNG with IHDR claiming 10 000 × 10 000 and truncated IDAT
+        chunks. If dimensions were checked after `img.load()`, this would either
+        exhaust memory or raise OSError; instead it must raise the dimension-limit
+        ValueError cleanly.
+        """
+        import base64
+        import struct
+        import zlib
+
+        from pdf_utils import _decode_chart_image
+
+        def _chunk(tag, data):
+            return (
+                struct.pack(">I", len(data))
+                + tag
+                + data
+                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+            )
+
+        sig = b"\x89PNG\r\n\x1a\n"
+        ihdr = struct.pack(">IIBBBBB", 10000, 10000, 8, 2, 0, 0, 0)
+        # A plausible IDAT with a few bytes of zlib-compressed data.
+        idat = zlib.compress(b"\x00" * 64)
+        png = sig + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", idat) + _chunk(b"IEND", b"")
+        payload = "data:image/png;base64," + base64.b64encode(png).decode()
+        with pytest.raises(ValueError, match="dimension limit"):
+            _decode_chart_image(payload)
+
+    def test_truncated_png_rejected(self):
+        """A valid PNG header followed by garbage IDAT should raise decode errors."""
+        import base64
+
+        from pdf_utils import _decode_chart_image
+
+        sig = b"\x89PNG\r\n\x1a\n"
+        payload = "data:image/png;base64," + base64.b64encode(sig + b"garbage" * 4).decode()
+        with pytest.raises(ValueError):
+            _decode_chart_image(payload)

@@ -32,6 +32,11 @@ MAX_CHART_IMAGE_DIM = int(os.environ.get("MAX_CHART_IMAGE_DIM", 4000))  # px
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _PNG_DATA_URL_PREFIX = "data:image/png;base64,"
 
+# Align PIL's own decompression-bomb guard with our per-image dimension cap so
+# a malicious PNG declaring huge IHDR dimensions is rejected before any pixel
+# data is decoded. PIL raises DecompressionBombError once this is exceeded.
+PILImage.MAX_IMAGE_PIXELS = MAX_CHART_IMAGE_DIM * MAX_CHART_IMAGE_DIM
+
 
 def _decode_chart_image(data_url):
     """Validate a chart-image data URL and return a PIL Image ready to embed.
@@ -39,6 +44,11 @@ def _decode_chart_image(data_url):
     Raises ValueError with a human-readable message when the payload fails
     any of the format/size/dimension checks. The caller surfaces the message
     as a structured warning.
+
+    Dimensions are inspected immediately after ``Image.open()`` (which only
+    parses the PNG IHDR chunk) so an attacker cannot smuggle an oversized
+    image past validation by compressing it heavily enough to fit the byte
+    cap — the dimension check runs before any pixel data is decompressed.
     """
     if not isinstance(data_url, str) or not data_url.startswith(_PNG_DATA_URL_PREFIX):
         raise ValueError("Only PNG data URLs are accepted.")
@@ -55,18 +65,24 @@ def _decode_chart_image(data_url):
         raise ValueError("Chart image is not a valid PNG.")
     try:
         img = PILImage.open(BytesIO(image_bytes))
+        # IHDR is parsed during open(); width/height are available here
+        # WITHOUT touching IDAT, so reject before verify()/load().
+        if img.width > MAX_CHART_IMAGE_DIM or img.height > MAX_CHART_IMAGE_DIM:
+            raise ValueError(
+                f"Chart image exceeds the {MAX_CHART_IMAGE_DIM} px dimension limit."
+            )
         img.verify()
         # verify() closes the file pointer; re-open for usage.
         img = PILImage.open(BytesIO(image_bytes))
         img.load()
+    except PILImage.DecompressionBombError as e:
+        raise ValueError(
+            f"Chart image exceeds the {MAX_CHART_IMAGE_DIM} px dimension limit."
+        ) from e
     except (UnidentifiedImageError, OSError) as e:
         raise ValueError("Chart image could not be decoded.") from e
     if img.format != "PNG":
         raise ValueError("Chart image must be PNG.")
-    if img.width > MAX_CHART_IMAGE_DIM or img.height > MAX_CHART_IMAGE_DIM:
-        raise ValueError(
-            f"Chart image exceeds the {MAX_CHART_IMAGE_DIM} px dimension limit."
-        )
     return img, image_bytes
 
 # Colour palette

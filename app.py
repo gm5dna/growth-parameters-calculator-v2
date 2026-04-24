@@ -63,6 +63,11 @@ limiter = Limiter(
     storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
 )
 
+# Per-endpoint limits. Both calculation endpoints run an rcpchgrowth lookup
+# that dominates per-request cost, so we apply the same env-tunable cap.
+_CALC_RATE_LIMIT = os.environ.get("CALC_RATE_LIMIT", "30 per minute")
+_PDF_RATE_LIMIT = os.environ.get("PDF_RATE_LIMIT", "10 per minute")
+
 
 @app.errorhandler(413)
 def request_entity_too_large(_error):
@@ -347,7 +352,14 @@ def perform_calculation(data):
             except Exception:
                 continue
 
-        results["bone_age_height"] = bone_age_result
+        # Only publish bone_age_height when the loop actually produced a
+        # result. If every assessment tripped a non-ValidationError path
+        # (typically an rcpchgrowth internal failure), surface that clearly
+        # via validation_messages rather than writing a null field.
+        if bone_age_result is not None:
+            results["bone_age_height"] = bone_age_result
+        else:
+            all_warnings.append("Bone age assessment could not be processed.")
         results["bone_age_assessments"] = bone_age_assessments
 
     results["validation_messages"] = all_warnings
@@ -385,6 +397,7 @@ def _handle_calculation_exception(e):
 
 
 @app.route("/calculate", methods=["POST"])
+@limiter.limit(_CALC_RATE_LIMIT)
 def calculate():
     try:
         data = _parse_json_request()
@@ -404,6 +417,7 @@ def calculate():
 
 
 @app.route("/chart-data", methods=["POST"])
+@limiter.limit(_CALC_RATE_LIMIT)
 def chart_data():
     try:
         data = _parse_json_request()
@@ -440,7 +454,7 @@ def chart_data():
 
 
 @app.route("/export-pdf", methods=["POST"])
-@limiter.limit("10 per minute")
+@limiter.limit(_PDF_RATE_LIMIT)
 def export_pdf():
     try:
         data = _parse_json_request()
