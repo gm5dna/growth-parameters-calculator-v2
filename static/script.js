@@ -162,6 +162,7 @@ let form,
   errorDisplay,
   errorMessage,
   resultsSection,
+  measurementSummary,
   resultsGrid,
   warningsDisplay,
   warningsList,
@@ -638,6 +639,38 @@ function formatCalendarAge(ageCal) {
   return parts.join(', ');
 }
 
+function formatMeasurementValue(value, unit) {
+  if (value === null || value === undefined) return 'N/A';
+  return unit ? value + ' ' + unit : String(value);
+}
+
+function buildMeasurementSummaryRows(results) {
+  var summaryConfig = [
+    { key: 'weight', label: 'Weight' },
+    { key: 'height', label: 'Height' },
+    { key: 'bmi', label: 'BMI' },
+    { key: 'ofc', label: 'OFC' },
+  ];
+
+  return summaryConfig
+    .filter(function (item) { return results[item.key]; })
+    .map(function (item) {
+      var measurement = results[item.key];
+      var extra = '';
+      if (item.key === 'bmi' && measurement.percentage_median !== null && measurement.percentage_median !== undefined) {
+        extra = measurement.percentage_median.toFixed(1) + '% median';
+      }
+      return {
+        key: item.key,
+        label: item.label,
+        value: formatMeasurementValue(measurement.value, MEASUREMENT_UNITS[item.key] || ''),
+        centile: formatCentile(measurement.centile),
+        sds: formatSds(measurement.sds),
+        extra: extra,
+      };
+    });
+}
+
 /* ------------------------------------------------------------------ */
 /*  Results display                                                   */
 /* ------------------------------------------------------------------ */
@@ -668,6 +701,85 @@ function createResultCard(label, value, subs) {
   return card;
 }
 
+function showChartFromSummary(chartType) {
+  var chartsSection = document.getElementById('chartsSection');
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (chartsSection) chartsSection.hidden = false;
+  if (showChartsBtn) showChartsBtn.hidden = true;
+  if (typeof switchChartType === 'function') {
+    switchChartType(chartType);
+  }
+  if (chartsSection) chartsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderMeasurementSummary(rows) {
+  if (!measurementSummary) return;
+  measurementSummary.innerHTML = '';
+
+  if (!rows.length) {
+    measurementSummary.hidden = true;
+    return;
+  }
+
+  var title = document.createElement('h3');
+  title.textContent = 'Current Measurements';
+  measurementSummary.appendChild(title);
+
+  var tableWrap = document.createElement('div');
+  tableWrap.className = 'measurement-summary-table-wrap';
+
+  var table = document.createElement('table');
+  table.className = 'measurement-summary-table';
+
+  var thead = document.createElement('thead');
+  var headRow = document.createElement('tr');
+  ['Parameter', 'Value', 'Centile', 'SDS', ''].forEach(function (label) {
+    var th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  var tbody = document.createElement('tbody');
+  function appendCell(tr, label, text) {
+    var td = document.createElement('td');
+    td.setAttribute('data-label', label);
+    td.textContent = text;
+    tr.appendChild(td);
+    return td;
+  }
+
+  rows.forEach(function (row) {
+    var tr = document.createElement('tr');
+
+    appendCell(tr, 'Parameter', row.label);
+    appendCell(tr, 'Value', row.extra ? row.value + ' (' + row.extra + ')' : row.value);
+    appendCell(tr, 'Centile', row.centile);
+    appendCell(tr, 'SDS', row.sds);
+
+    var chartCell = document.createElement('td');
+    chartCell.setAttribute('data-label', 'Chart');
+    var chartBtn = document.createElement('button');
+    chartBtn.type = 'button';
+    chartBtn.className = 'btn-summary-chart';
+    chartBtn.setAttribute('aria-label', 'View ' + row.label + ' chart');
+    chartBtn.setAttribute('data-chart', row.key);
+    chartBtn.textContent = 'Chart';
+    chartBtn.addEventListener('click', function () {
+      showChartFromSummary(row.key);
+    });
+    chartCell.appendChild(chartBtn);
+    tr.appendChild(chartCell);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  measurementSummary.appendChild(tableWrap);
+  measurementSummary.hidden = false;
+}
+
 function displayResults(results) {
   resultsGrid.innerHTML = '';
 
@@ -696,28 +808,7 @@ function displayResults(results) {
   }
 
   // --- Measurement cards: weight, height, ofc, bmi ---
-  ['weight', 'height', 'ofc', 'bmi'].forEach(function (method) {
-    const meas = results[method];
-    if (!meas) return;
-
-    const label = MEASUREMENT_LABELS[method] || method.toUpperCase();
-    const unit = MEASUREMENT_UNITS[method] || '';
-    const value = meas.value + ' ' + unit;
-    const subs = [];
-
-    if (meas.centile !== null && meas.centile !== undefined) {
-      subs.push('Centile: ' + formatCentile(meas.centile));
-    }
-    if (meas.sds !== null && meas.sds !== undefined) {
-      subs.push('SDS: ' + formatSds(meas.sds));
-    }
-
-    if (method === 'bmi' && meas.percentage_median !== null && meas.percentage_median !== undefined) {
-      subs.push('% Median: ' + meas.percentage_median.toFixed(1) + '%');
-    }
-
-    resultsGrid.appendChild(createResultCard(label, value, subs));
-  });
+  renderMeasurementSummary(buildMeasurementSummaryRows(results));
 
   // --- Mid-parental height card ---
   if (results.mid_parental_height) {
@@ -999,6 +1090,10 @@ function resetForm() {
   if (warningsDisplay) warningsDisplay.setAttribute('hidden', '');
   if (warningsList) warningsList.innerHTML = '';
   if (resultsGrid) resultsGrid.innerHTML = '';
+  if (measurementSummary) {
+    measurementSummary.innerHTML = '';
+    measurementSummary.hidden = true;
+  }
 
   // Reset advanced mode toggle
   document.body.classList.remove('advanced-mode');
@@ -1089,6 +1184,7 @@ document.addEventListener('DOMContentLoaded', function () {
   errorDisplay = document.getElementById('errorDisplay');
   errorMessage = document.getElementById('errorMessage');
   resultsSection = document.getElementById('resultsSection');
+  measurementSummary = document.getElementById('measurementSummary');
   resultsGrid = document.getElementById('resultsGrid');
   warningsDisplay = document.getElementById('warningsDisplay');
   warningsList = document.getElementById('warningsList');
@@ -1232,6 +1328,7 @@ if (typeof module !== 'undefined' && module.exports) {
     formatCentile,
     formatSds,
     formatCalendarAge,
+    buildMeasurementSummaryRows,
     gatherFormData,
     saveFormState,
     restoreFormState,

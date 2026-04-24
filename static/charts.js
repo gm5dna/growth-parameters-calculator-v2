@@ -411,6 +411,7 @@ var centileLabelPlugin = {
     ctx.save();
     chart.data.datasets.forEach(function(dataset, i) {
       if (dataset.type === 'scatter' || !dataset.centileLabel) return;
+      if (chart.width < 500 && ['0.4', '50', '99.6'].indexOf(dataset.centileLabel) === -1) return;
       var meta = chart.getDatasetMeta(i);
       if (!meta.visible) return;
       var lastPoint = meta.data[meta.data.length - 1];
