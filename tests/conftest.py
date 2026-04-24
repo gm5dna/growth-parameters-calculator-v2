@@ -1,11 +1,8 @@
 """Shared pytest fixtures."""
-import os
-import sys
-
 import pytest
 
-# Ensure project root is on sys.path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Project root is added to sys.path via pyproject.toml `tool.pytest.ini_options`;
+# see `pythonpath = ["."]` there. No runtime sys.path mutation is needed.
 
 
 @pytest.fixture

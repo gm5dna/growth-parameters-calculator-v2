@@ -895,47 +895,48 @@ function renderChart(centiles, ageRange, chartType) {
 function downloadChart() {
     if (!currentChart) return;
 
-    // Force light mode for export
+    // Force light mode for export. The try/finally is load-bearing — without
+    // it, any canvas failure between the theme switch and the restore block
+    // leaves the page stuck in light mode.
     var savedTheme = document.documentElement.getAttribute('data-theme');
     document.documentElement.setAttribute('data-theme', 'light');
 
-    // Re-render in light mode
     var ranges = AGE_RANGES[currentChartType] || [];
     var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
     var cacheKey = (typeof lastPayload !== 'undefined' && lastPayload ? lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (typeof lastPayload !== 'undefined' && lastPayload ? lastPayload.sex : 'male');
     var centiles = chartDataCache[cacheKey];
     if (centiles) renderChart(centiles, ageRange, currentChartType);
 
-    var canvas = document.getElementById('growthChart');
-    if (!canvas) return;
+    try {
+        var canvas = document.getElementById('growthChart');
+        if (!canvas) return;
 
-    var chartType = currentChartType || 'chart';
-    var date = new Date().toISOString().split('T')[0];
-    var filename = 'growth-chart-' + chartType + '-' + date + '.png';
+        var chartType = currentChartType || 'chart';
+        var date = new Date().toISOString().split('T')[0];
+        var filename = 'growth-chart-' + chartType + '-' + date + '.png';
 
-    // Create high-res export canvas (2x for Retina)
-    var scale = 2;
-    var exportCanvas = document.createElement('canvas');
-    exportCanvas.width = canvas.width * scale;
-    exportCanvas.height = canvas.height * scale;
+        // Create high-res export canvas (2x for Retina)
+        var scale = 2;
+        var exportCanvas = document.createElement('canvas');
+        exportCanvas.width = canvas.width * scale;
+        exportCanvas.height = canvas.height * scale;
 
-    var ctx = exportCanvas.getContext('2d');
-    ctx.scale(scale, scale);
-    ctx.drawImage(canvas, 0, 0);
+        var ctx = exportCanvas.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.drawImage(canvas, 0, 0);
 
-    // Trigger download
-    var link = document.createElement('a');
-    link.download = filename;
-    link.href = exportCanvas.toDataURL('image/png');
-    link.click();
-
-    // Restore original theme
-    if (savedTheme) {
-        document.documentElement.setAttribute('data-theme', savedTheme);
-    } else {
-        document.documentElement.removeAttribute('data-theme');
+        var link = document.createElement('a');
+        link.download = filename;
+        link.href = exportCanvas.toDataURL('image/png');
+        link.click();
+    } finally {
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+        if (centiles) renderChart(centiles, ageRange, currentChartType);
     }
-    if (centiles) renderChart(centiles, ageRange, currentChartType);
 }
 
 async function captureChartImages() {
