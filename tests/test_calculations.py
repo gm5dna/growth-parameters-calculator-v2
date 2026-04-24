@@ -1,14 +1,17 @@
 """Tests for calculations module."""
-import pytest
 from datetime import date
+
+import pytest
+
 from calculations import (
     calculate_age_in_years,
-    calculate_calendar_age,
-    should_apply_gestation_correction,
     calculate_boyd_bsa,
+    calculate_calendar_age,
     calculate_cbnf_bsa,
+    calculate_gh_dose,
+    calculate_height_velocity,
+    should_apply_gestation_correction,
 )
-from calculations import calculate_height_velocity, calculate_gh_dose
 
 
 class TestCalculateAgeInYears:

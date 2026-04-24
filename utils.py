@@ -72,7 +72,7 @@ def get_chart_data(reference, measurement_method, sex):
     merged = {}  # centile_value -> {centile, sds, data: []}
 
     for segment in raw:
-        for segment_name, sex_data in segment.items():
+        for sex_data in segment.values():
             if sex not in sex_data:
                 continue
             method_data = sex_data[sex]

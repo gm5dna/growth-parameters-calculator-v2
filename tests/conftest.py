@@ -1,7 +1,8 @@
 """Shared pytest fixtures."""
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Ensure project root is on sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,7 +11,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 @pytest.fixture
 def app():
     """Create Flask application for testing."""
-    from app import app as flask_app, limiter
+    from app import app as flask_app
+    from app import limiter
     flask_app.config["TESTING"] = True
     flask_app.config["RATELIMIT_ENABLED"] = False
     # The RATELIMIT_ENABLED flag is checked at request time for future

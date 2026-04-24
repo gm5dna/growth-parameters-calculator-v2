@@ -4,14 +4,19 @@
   "private": true,
   "scripts": {
     "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "lint": "eslint static/ tests/js/"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "eslint": "9.39.4",
     "jest": "^29.0.0",
-    "jest-environment-jsdom": "^29.0.0"
+    "jest-environment-jsdom": "^30.3.0"
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "roots": ["<rootDir>/tests/js"]
+    "roots": [
+      "<rootDir>/tests/js"
+    ]
   }
 }

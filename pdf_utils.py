@@ -2,25 +2,26 @@
 import base64
 import logging
 import os
-from io import BytesIO
 from datetime import datetime as dt
+from io import BytesIO
 
+from PIL import Image as PILImage
+from PIL import UnidentifiedImageError
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.pdfgen.canvas import Canvas as BaseCanvas
 from reportlab.platypus import (
-    SimpleDocTemplate,
+    Image,
+    KeepTogether,
+    PageBreak,
     Paragraph,
+    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
-    Image,
-    PageBreak,
-    KeepTogether,
 )
-from reportlab.pdfgen.canvas import Canvas as BaseCanvas
-from PIL import Image as PILImage, UnidentifiedImageError
 
 logger = logging.getLogger(__name__)
 

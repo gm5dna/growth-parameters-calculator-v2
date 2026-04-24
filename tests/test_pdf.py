@@ -1,6 +1,8 @@
 """Tests for PDF generation."""
-import pytest
 from io import BytesIO
+
+import pytest
+
 from pdf_utils import GrowthReportPDF
 
 
@@ -61,6 +63,7 @@ class TestGrowthReportPDF:
     def test_with_chart_images(self, sample_results, sample_patient_info):
         import base64
         from io import BytesIO as _BytesIO
+
         from PIL import Image as PILImage
         # Create a valid 2x2 PNG using Pillow
         img = PILImage.new("RGB", (2, 2), color=(255, 255, 255))

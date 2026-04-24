@@ -1,6 +1,5 @@
 """Integration tests for chart data workflows."""
 import json
-import pytest
 
 
 class TestChartDataWorkflows:

@@ -1,9 +1,9 @@
 """Integration tests for export and polish features."""
-import json
 import base64
-import pytest
-from PIL import Image as PILImage
+import json
 from io import BytesIO
+
+from PIL import Image as PILImage
 
 
 class TestExportWorkflows:

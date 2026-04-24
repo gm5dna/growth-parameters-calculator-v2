@@ -1,5 +1,4 @@
 """Tests for Flask endpoints."""
-import pytest
 import json
 
 
@@ -419,8 +418,9 @@ class TestExportPdfEndpoint:
 
     def test_pdf_with_chart_images(self, client):
         import base64
-        from PIL import Image as PILImage
         from io import BytesIO as BIO
+
+        from PIL import Image as PILImage
         img = PILImage.new('RGB', (2, 2), color='white')
         buf = BIO()
         img.save(buf, format='PNG')

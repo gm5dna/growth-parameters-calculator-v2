@@ -1,6 +1,5 @@
 """Integration tests — full clinical workflows."""
 import json
-import pytest
 
 
 class TestTypicalWorkflow:
