@@ -18,3 +18,5 @@ coverage/
 CLAUDE.md
 docs/superpowers/
 spec/
+.claude/
+CODE_REVIEW.md
