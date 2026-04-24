@@ -1,6 +1,7 @@
 const {
   buildMeasurementSummaryRows,
   showChartFromSummary,
+  __testHooks,
 } = require('../../static/script');
 
 describe('buildMeasurementSummaryRows', () => {
@@ -80,5 +81,45 @@ describe('showChartFromSummary', () => {
     document.body.innerHTML = '';
     expect(() => showChartFromSummary('bmi')).not.toThrow();
     expect(global.switchChartType).toHaveBeenCalledWith('bmi');
+  });
+});
+
+describe('updateGhDisplay', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <output id="ghDoseValue"></output>
+      <div id="ghResults"></div>
+      <div id="ghPenInfo"></div>
+      <select id="ghPenDevice">
+        <option value="norditropin" selected>Norditropin</option>
+      </select>
+    `;
+  });
+
+  test('renders GH dose result lines as text nodes in child elements', () => {
+    const resultsDiv = document.getElementById('ghResults');
+    Object.defineProperty(resultsDiv, 'innerHTML', {
+      configurable: true,
+      get() {
+        return '';
+      },
+      set() {
+        throw new Error('updateGhDisplay must render result lines without innerHTML');
+      },
+    });
+
+    __testHooks.setGhState({ dose: 0.7, bsa: 1.2, weightKg: 20 });
+    __testHooks.updateGhDisplay();
+
+    const resultLines = Array.from(document.querySelectorAll('#ghResults div'));
+    expect(resultLines.map((line) => line.textContent)).toEqual([
+      '= 4.1 mg/m²/week',
+      '= 35.0 mcg/kg/day',
+    ]);
+    expect(resultLines).toHaveLength(2);
+    resultLines.forEach((line) => {
+      expect(line.tagName).toBe('DIV');
+      expect(line.children).toHaveLength(0);
+    });
   });
 });
