@@ -209,8 +209,8 @@
                     </div>
                 </fieldset>
 
-                <!-- Parental Heights -->
-                <fieldset class="form-section">
+                <!-- Parental Heights (advanced only) -->
+                <fieldset class="form-section advanced-only">
                     <legend>Parental Heights <span class="optional">(Optional)</span></legend>
                     <p class="form-hint">Used to calculate mid-parental height and target centile range.</p>
                     <div class="form-grid">
@@ -299,6 +299,9 @@
                     <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                     <ul id="warningsList"></ul>
                 </div>
+
+                <!-- Compact current measurement summary populated by script.js -->
+                <div class="measurement-summary" id="measurementSummary" hidden></div>
 
                 <!-- Results grid populated by script.js -->
                 <div class="results-grid" id="resultsGrid"></div>
