@@ -4,7 +4,11 @@
  * re-adds DOB or measurement values to the persisted state, this test fails.
  */
 
-const { saveFormState } = require('../../static/script.js');
+let saveFormState;
+
+beforeAll(async () => {
+  ({ saveFormState } = await import('../../static/script.mjs'));
+});
 
 const PERMITTED_KEYS = new Set(['sex', 'reference', 'ghTreatment', 'advancedMode']);
 const PHI_LIKE_NAMES = [

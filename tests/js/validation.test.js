@@ -1,11 +1,20 @@
-const {
-  validateDate,
+let validateDate,
   validateWeight,
   validateHeight,
   validateOfc,
   validateSex,
-  validateAtLeastOneMeasurement,
-} = require('../../static/validation');
+  validateAtLeastOneMeasurement;
+
+beforeAll(async () => {
+  ({
+    validateDate,
+    validateWeight,
+    validateHeight,
+    validateOfc,
+    validateSex,
+    validateAtLeastOneMeasurement,
+  } = await import('../../static/validation.mjs'));
+});
 
 describe('validateDate', () => {
   test('accepts valid YYYY-MM-DD', () => {

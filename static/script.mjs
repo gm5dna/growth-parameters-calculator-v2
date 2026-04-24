@@ -6,6 +6,24 @@
  * shortcuts (Ctrl+Enter to submit, Escape to reset).
  */
 
+import {
+  validateDate,
+  validateWeight,
+  validateHeight,
+  validateOfc,
+  validateSex,
+  validateAtLeastOneMeasurement,
+} from './validation.mjs';
+import { copyResultsToClipboard } from './clipboard.mjs';
+import {
+  captureChartImages,
+  destroyChart,
+  downloadChart,
+  loadAndRenderChart,
+  switchChartType,
+} from './charts.mjs';
+import { appState, resetAppState } from './state.mjs';
+
 /* ------------------------------------------------------------------ */
 /*  Utility                                                           */
 /* ------------------------------------------------------------------ */
@@ -35,30 +53,30 @@ function showToast(message) {
 /* ------------------------------------------------------------------ */
 
 async function handleCopyResults() {
-    if (!lastResults) return;
+    if (!appState.lastResults) return;
     var patientInfo = {
-        sex: lastPayload ? lastPayload.sex : '',
-        reference: lastPayload ? lastPayload.reference || 'uk-who' : 'uk-who',
-        weight: lastPayload ? lastPayload.weight : null,
+        sex: appState.lastPayload ? appState.lastPayload.sex : '',
+        reference: appState.lastPayload ? appState.lastPayload.reference || 'uk-who' : 'uk-who',
+        weight: appState.lastPayload ? appState.lastPayload.weight : null,
     };
-    var success = await copyResultsToClipboard(lastResults, patientInfo);
+    var success = await copyResultsToClipboard(appState.lastResults, patientInfo);
     showToast(success ? 'Results copied to clipboard' : 'Copy failed \u2014 please copy manually');
 }
 
 async function handleExportPdf() {
-    if (!lastResults || !lastPayload) return;
+    if (!appState.lastResults || !appState.lastPayload) return;
     var btn = document.getElementById('exportPdfBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner" aria-hidden="true"></span> Generating PDF\u2026'; }
 
     try {
-        var chartImages = typeof captureChartImages === 'function' ? await captureChartImages() : {};
+        var chartImages = await captureChartImages();
         var payload = {
-            results: lastResults,
+            results: appState.lastResults,
             patient_info: {
-                sex: lastPayload.sex,
-                birth_date: lastPayload.birth_date,
-                measurement_date: lastPayload.measurement_date,
-                reference: lastPayload.reference || 'uk-who',
+                sex: appState.lastPayload.sex,
+                birth_date: appState.lastPayload.birth_date,
+                measurement_date: appState.lastPayload.measurement_date,
+                reference: appState.lastPayload.reference || 'uk-who',
             },
             chart_images: chartImages,
         };
@@ -99,8 +117,6 @@ async function handleExportPdf() {
 
 const STORAGE_KEY = 'growthCalculatorFormState';
 
-var lastResults = null;
-var lastPayload = null;
 var autoCalcInProgress = false;
 var currentGhDose = 0;
 var currentBsa = null;
@@ -212,7 +228,7 @@ function toggleTheme() {
     try { localStorage.setItem('growthCalcTheme', next); } catch(e) {}
     updateThemeIcon();
     // Re-render chart if visible to pick up new colours
-    if (typeof currentChart !== 'undefined' && currentChart && typeof loadAndRenderChart === 'function') {
+    if (appState.currentChart) {
         loadAndRenderChart();
     }
 }
@@ -751,9 +767,7 @@ function showChartFromSummary(chartType) {
   var showChartsBtn = document.getElementById('showChartsBtn');
   if (chartsSection) chartsSection.hidden = false;
   if (showChartsBtn) showChartsBtn.hidden = true;
-  if (typeof switchChartType === 'function') {
-    switchChartType(chartType);
-  }
+  switchChartType(chartType);
   if (chartsSection) chartsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -927,7 +941,7 @@ function displayResults(results) {
     if (ghCalc) {
       ghCalc.hidden = false;
       if (results.bsa) currentBsa = results.bsa.value;
-      // Read weight directly from the form (lastPayload may not be set yet)
+      // Read weight directly from the form (appState.lastPayload may not be set yet)
       var weightVal = document.getElementById('weight')?.value;
       if (weightVal) currentWeightKg = parseFloat(weightVal);
       var pen = getSelectedPen();
@@ -945,8 +959,8 @@ function displayResults(results) {
   displayWarnings(results.validation_messages);
 
   // Store results for chart access
-  lastResults = results;
-  lastPayload = gatherFormData();
+  appState.lastResults = results;
+  appState.lastPayload = gatherFormData();
 
   // Show "Show Growth Charts" button
   var showChartsBtn = document.getElementById('showChartsBtn');
@@ -957,7 +971,7 @@ function displayResults(results) {
 
   // Re-render charts if already visible
   var chartsSection = document.getElementById('chartsSection');
-  if (chartsSection && !chartsSection.hidden && typeof loadAndRenderChart === 'function') {
+  if (chartsSection && !chartsSection.hidden) {
     loadAndRenderChart();
   }
 
@@ -1184,8 +1198,8 @@ function resetForm() {
   }
 
   // Hide chart section
-  lastResults = null;
-  lastPayload = null;
+  destroyChart();
+  resetAppState();
   var chartsSection = document.getElementById('chartsSection');
   if (chartsSection) chartsSection.hidden = true;
   var showChartsBtn = document.getElementById('showChartsBtn');
@@ -1226,7 +1240,7 @@ function handleKeyboardShortcuts(event) {
 /*  Initialisation                                                    */
 /* ------------------------------------------------------------------ */
 
-document.addEventListener('DOMContentLoaded', function () {
+export function initApp() {
   // Cache DOM references
   form = document.getElementById('growthForm');
   calculateBtn = document.getElementById('calculateBtn');
@@ -1349,7 +1363,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var pdfBtn = document.getElementById('exportPdfBtn');
   if (pdfBtn) pdfBtn.addEventListener('click', handleExportPdf);
   var dlChartBtn = document.getElementById('downloadChartBtn');
-  if (dlChartBtn) dlChartBtn.addEventListener('click', function() { if (typeof downloadChart === 'function') downloadChart(); });
+  if (dlChartBtn) dlChartBtn.addEventListener('click', downloadChart);
 
   document.addEventListener('keydown', handleKeyboardShortcuts);
 
@@ -1369,49 +1383,47 @@ document.addEventListener('DOMContentLoaded', function () {
     initLabels[0].classList.toggle('active-label', !modeChecked);
     initLabels[1].classList.toggle('active-label', !!modeChecked);
   }
-});
-
-// Export for Node.js (Jest) -- no-op in browser
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = {
-    debounce,
-    formatCentile,
-    formatSds,
-    formatCalendarAge,
-    buildMeasurementSummaryRows,
-    showChartFromSummary,
-    gatherFormData,
-    saveFormState,
-    restoreFormState,
-    resetForm,
-    showError,
-    clearError,
-    dismissDisclaimer,
-    displayResults,
-    handleSubmit,
-    handleModeToggle,
-    addPrevMeasurementRow,
-    getPreviousMeasurements,
-    importCsv,
-    parsePreviousMeasurementsCsv,
-    exportCsv,
-    toggleCollapsible,
-    addBoneAgeRow,
-    getBoneAgeAssessments,
-    updateGhDisplay,
-    __testHooks: {
-      setGhState: function (state) {
-        currentGhDose = state.dose;
-        currentBsa = state.bsa;
-        currentWeightKg = state.weightKg;
-      },
-      updateGhDisplay,
-    },
-    showToast,
-    handleCopyResults,
-    handleExportPdf,
-    initTheme,
-    toggleTheme,
-    updateThemeIcon,
-  };
 }
+
+export const __testHooks = {
+  setGhState: function (state) {
+    currentGhDose = state.dose;
+    currentBsa = state.bsa;
+    currentWeightKg = state.weightKg;
+  },
+  updateGhDisplay,
+};
+
+export {
+  debounce,
+  formatCentile,
+  formatSds,
+  formatCalendarAge,
+  buildMeasurementSummaryRows,
+  showChartFromSummary,
+  gatherFormData,
+  saveFormState,
+  restoreFormState,
+  resetForm,
+  showError,
+  clearError,
+  dismissDisclaimer,
+  displayResults,
+  handleSubmit,
+  handleModeToggle,
+  addPrevMeasurementRow,
+  getPreviousMeasurements,
+  importCsv,
+  parsePreviousMeasurementsCsv,
+  exportCsv,
+  toggleCollapsible,
+  addBoneAgeRow,
+  getBoneAgeAssessments,
+  updateGhDisplay,
+  showToast,
+  handleCopyResults,
+  handleExportPdf,
+  initTheme,
+  toggleTheme,
+  updateThemeIcon,
+};

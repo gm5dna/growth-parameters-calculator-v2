@@ -300,10 +300,10 @@
                     <ul id="warningsList"></ul>
                 </div>
 
-                <!-- Compact current measurement summary populated by script.js -->
+                <!-- Compact current measurement summary populated by script.mjs -->
                 <div class="measurement-summary" id="measurementSummary" hidden></div>
 
-                <!-- Results grid populated by script.js -->
+                <!-- Results grid populated by script.mjs -->
                 <div class="results-grid" id="resultsGrid"></div>
 
                 <!-- GH Dose Calculator (advanced mode, shown when gh_dose returned) -->
@@ -364,7 +364,7 @@
 
             <!-- Age range selector -->
             <div class="age-range-selector" id="ageRangeSelector" role="radiogroup" aria-label="Age range">
-                <!-- Populated dynamically by charts.js -->
+                <!-- Populated dynamically by charts.mjs -->
             </div>
 
             <!-- Chart loading indicator -->
@@ -404,10 +404,7 @@
 
     <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/chartjs-plugin-annotation.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='validation.js') }}"></script>
-    <script src="{{ url_for('static', filename='clipboard.js') }}"></script>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-    <script src="{{ url_for('static', filename='charts.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='main.mjs') }}"></script>
 
 </body>
 </html>

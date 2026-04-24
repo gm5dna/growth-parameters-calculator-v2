@@ -9,6 +9,8 @@
  * plotting, MPH display, tooltips).
  */
 
+import { appState } from './state.mjs';
+
 /* ------------------------------------------------------------------ */
 /*  Configuration constants                                           */
 /* ------------------------------------------------------------------ */
@@ -70,7 +72,7 @@ function hexToRgb(hex) {
  */
 function getChartColors() {
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
+    var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
     var isFemale = sex === 'female';
 
     return {
@@ -99,13 +101,7 @@ function getChartColors() {
 
 /** Cache keyed by "reference|method|sex", stores centile arrays. */
 var chartDataCache = {};
-
-/* ------------------------------------------------------------------ */
-/*  Current Chart.js instance                                         */
-/* ------------------------------------------------------------------ */
-
-/** The active Chart.js instance, or null if no chart is rendered. */
-var currentChart = null;
+var chartPluginsRegistered = false;
 
 /* ------------------------------------------------------------------ */
 /*  Age range configuration                                           */
@@ -188,7 +184,7 @@ function getDefaultAgeRange(chartType, ageYears, hasParentalHeights) {
  *
  * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
  */
-function switchChartType(chartType) {
+export function switchChartType(chartType) {
   currentChartType = chartType;
 
   // Update active tab
@@ -225,8 +221,8 @@ function renderAgeRangeSelector(chartType) {
   container.innerHTML = '';
 
   var ranges = AGE_RANGES[chartType] || [];
-  var ageYears = (typeof lastResults !== 'undefined' && lastResults) ? lastResults.age_years || 0 : 0;
-  var hasParentalHeights = (typeof lastResults !== 'undefined' && lastResults) ? !!lastResults.mid_parental_height : false;
+  var ageYears = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
+  var hasParentalHeights = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
   var defaultIndex = getDefaultAgeRange(chartType, ageYears, hasParentalHeights);
   currentAgeRangeIndex = defaultIndex;
 
@@ -254,11 +250,11 @@ function renderAgeRangeSelector(chartType) {
 /**
  * Fetch centile data for the current chart type and render it with
  * the currently selected age range. Reads reference and sex from
- * lastPayload (set by script.js after a successful calculation).
+ * appState.lastPayload (set by script.mjs after a successful calculation).
  */
-async function loadAndRenderChart() {
-  var reference = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.reference || 'uk-who' : 'uk-who';
-  var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
+export async function loadAndRenderChart() {
+  var reference = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
+  var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
   var ranges = AGE_RANGES[currentChartType] || [];
   var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
 
@@ -388,10 +384,10 @@ function filterDataToRange(centiles, minAge, maxAge) {
  * Destroy the current Chart.js instance to free resources and prevent
  * memory leaks. Safe to call even if no chart exists.
  */
-function destroyChart() {
-  if (currentChart) {
-    currentChart.destroy();
-    currentChart = null;
+export function destroyChart() {
+  if (appState.currentChart) {
+    appState.currentChart.destroy();
+    appState.currentChart = null;
   }
 }
 
@@ -427,8 +423,6 @@ var centileLabelPlugin = {
   },
 };
 
-Chart.register(centileLabelPlugin);
-
 var chartBgPlugin = {
   id: 'customCanvasBackground',
   beforeDraw: function(chart) {
@@ -443,7 +437,15 @@ var chartBgPlugin = {
     }
   },
 };
-Chart.register(chartBgPlugin);
+
+function ensureChartPluginsRegistered() {
+  if (chartPluginsRegistered) return true;
+  if (!window.Chart) return false;
+  window.Chart.register(centileLabelPlugin);
+  window.Chart.register(chartBgPlugin);
+  chartPluginsRegistered = true;
+  return true;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Measurement point helper                                          */
@@ -457,23 +459,23 @@ Chart.register(chartBgPlugin);
  * @returns {Object|null}    - { x: ageYears, y: measurementValue } or null.
  */
 function getMeasurementPoint(chartType) {
-  if (typeof lastResults === 'undefined' || !lastResults) return null;
-  var measurement = lastResults[chartType];
+  if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return null;
+  var measurement = appState.lastResults[chartType];
   if (!measurement || measurement.value === undefined) return null;
 
   // Per RCPCH guidance: plot at chronological age, then draw arrow back
   // to corrected age to show gestational correction
-  return { x: lastResults.age_years, y: measurement.value };
+  return { x: appState.lastResults.age_years, y: measurement.value };
 }
 
 function getCorrectedMeasurementPoint(chartType) {
-  if (typeof lastResults === 'undefined' || !lastResults) return null;
-  if (!lastResults.gestation_correction_applied) return null;
-  if (lastResults.corrected_age_years === undefined) return null;
-  var measurement = lastResults[chartType];
+  if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return null;
+  if (!appState.lastResults.gestation_correction_applied) return null;
+  if (appState.lastResults.corrected_age_years === undefined) return null;
+  var measurement = appState.lastResults[chartType];
   if (!measurement || measurement.value === undefined) return null;
 
-  return { x: lastResults.corrected_age_years, y: measurement.value };
+  return { x: appState.lastResults.corrected_age_years, y: measurement.value };
 }
 
 /* ------------------------------------------------------------------ */
@@ -491,8 +493,8 @@ function getCorrectedMeasurementPoint(chartType) {
  */
 function getMphAnnotations(chartType, ageRange) {
   if (chartType !== 'height') return {};
-  if (typeof lastResults === 'undefined' || !lastResults) return {};
-  var mph = lastResults.mid_parental_height;
+  if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return {};
+  var mph = appState.lastResults.mid_parental_height;
   if (!mph) return {};
   if (ageRange.max < 18) return {};
   var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -563,14 +565,14 @@ function getMphAnnotations(chartType, ageRange) {
 
 /**
  * Return previous measurement points for the given chart type as an
- * array of {x, y} objects, sourced from lastResults.previous_measurements.
+ * array of {x, y} objects, sourced from appState.lastResults.previous_measurements.
  *
  * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
  * @returns {Array}          - Array of {x: ageYears, y: value} points.
  */
 function getPreviousMeasurementPoints(chartType) {
-  if (typeof lastResults === 'undefined' || !lastResults || !lastResults.previous_measurements) return [];
-  return lastResults.previous_measurements
+  if (typeof appState.lastResults === 'undefined' || !appState.lastResults || !appState.lastResults.previous_measurements) return [];
+  return appState.lastResults.previous_measurements
     .filter(function(pm) { return pm[chartType] && pm[chartType].value !== undefined; })
     .map(function(pm) {
       var point = { x: pm.age, y: pm[chartType].value };
@@ -588,8 +590,8 @@ function getPreviousMeasurementPoints(chartType) {
  * @returns {Object|null} - { x: boneAgeYears, y: heightCm } or null.
  */
 function getBoneAgePoint() {
-  if (typeof lastResults === 'undefined' || !lastResults || !lastResults.bone_age_height) return null;
-  var ba = lastResults.bone_age_height;
+  if (typeof appState.lastResults === 'undefined' || !appState.lastResults || !appState.lastResults.bone_age_height) return null;
+  var ba = appState.lastResults.bone_age_height;
   if (!ba.within_window || !ba.height) return null;
   return { x: ba.bone_age, y: ba.height };
 }
@@ -636,6 +638,9 @@ function buildCentileDatasets(centiles, colors) {
  * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
  */
 function renderChart(centiles, ageRange, chartType) {
+  if (!ensureChartPluginsRegistered()) {
+    throw new Error('Chart.js is not loaded.');
+  }
   destroyChart();
 
   var canvas = document.getElementById('growthChart');
@@ -813,7 +818,7 @@ function renderChart(centiles, ageRange, chartType) {
               // Gestation correction arrow tip (corrected age)
               if (datasetLabel.indexOf('Gestation correction') === 0) {
                 var chronPoint = context.dataset.data[0];
-                var measurement = lastResults[currentChartType];
+                var measurement = appState.lastResults[currentChartType];
                 var name = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
                 var unit = CHART_UNITS[currentChartType] || '';
                 var lines = [
@@ -832,7 +837,7 @@ function renderChart(centiles, ageRange, chartType) {
 
               // Bone age tooltip
               if (datasetLabel === 'Bone age') {
-                var ba = lastResults.bone_age_height;
+                var ba = appState.lastResults.bone_age_height;
                 return [
                   'Bone Age: ' + point.x.toFixed(1) + ' years',
                   'Height: ' + point.y + ' cm',
@@ -850,7 +855,7 @@ function renderChart(centiles, ageRange, chartType) {
               }
 
               // Current measurement tooltip (existing)
-              var currentMeasurement = lastResults[currentChartType];
+              var currentMeasurement = appState.lastResults[currentChartType];
               var currentName = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
               var currentUnit = CHART_UNITS[currentChartType] || '';
               return [
@@ -875,12 +880,12 @@ function renderChart(centiles, ageRange, chartType) {
     },
   };
 
-  currentChart = new Chart(canvas.getContext('2d'), config);
+  appState.currentChart = new window.Chart(canvas.getContext('2d'), config);
 
   // Update screen reader description
   var descEl = document.getElementById('chartDescription');
   if (descEl && measurementPoint) {
-    var meas = lastResults[chartType];
+    var meas = appState.lastResults[chartType];
     descEl.textContent = CHART_DISPLAY_NAMES[chartType] + ' chart. ' +
       'Current measurement: ' + measurementPoint.y + ' ' + CHART_UNITS[chartType] +
       ' at age ' + measurementPoint.x.toFixed(2) + ' years.' +
@@ -893,8 +898,9 @@ function renderChart(centiles, ageRange, chartType) {
 /*  Chart download and capture                                        */
 /* ------------------------------------------------------------------ */
 
-function downloadChart() {
-    if (!currentChart) return;
+export function downloadChart() {
+    ensureChartPluginsRegistered();
+    if (!appState.currentChart) return;
 
     // Force light mode for export. The try/finally is load-bearing — without
     // it, any canvas failure between the theme switch and the restore block
@@ -904,7 +910,7 @@ function downloadChart() {
 
     var ranges = AGE_RANGES[currentChartType] || [];
     var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
-    var cacheKey = (typeof lastPayload !== 'undefined' && lastPayload ? lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (typeof lastPayload !== 'undefined' && lastPayload ? lastPayload.sex : 'male');
+    var cacheKey = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload ? appState.lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (typeof appState.lastPayload !== 'undefined' && appState.lastPayload ? appState.lastPayload.sex : 'male');
     var centiles = chartDataCache[cacheKey];
     if (centiles) renderChart(centiles, ageRange, currentChartType);
 
@@ -940,10 +946,11 @@ function downloadChart() {
     }
 }
 
-async function captureChartImages() {
+export async function captureChartImages() {
+    ensureChartPluginsRegistered();
     var images = {};
-    var reference = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.reference || 'uk-who' : 'uk-who';
-    var sex = (typeof lastPayload !== 'undefined' && lastPayload) ? lastPayload.sex : 'male';
+    var reference = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
+    var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
     var savedType = currentChartType;
 
     // Temporarily show charts section so the canvas has dimensions
@@ -961,8 +968,8 @@ async function captureChartImages() {
         try {
             var centiles = await fetchChartData(reference, type, sex);
             var ranges = AGE_RANGES[type] || [];
-            var ageYears = (typeof lastResults !== 'undefined' && lastResults) ? lastResults.age_years || 0 : 0;
-            var hasParentalHeights = (typeof lastResults !== 'undefined' && lastResults) ? !!lastResults.mid_parental_height : false;
+            var ageYears = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
+            var hasParentalHeights = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
             var defaultIdx = getDefaultAgeRange(type, ageYears, hasParentalHeights);
             var ageRange = ranges[defaultIdx] || ranges[0];
 
@@ -1001,7 +1008,9 @@ async function captureChartImages() {
 /*  Event listeners                                                   */
 /* ------------------------------------------------------------------ */
 
-document.addEventListener('DOMContentLoaded', function() {
+export function initCharts() {
+  ensureChartPluginsRegistered();
+
   // Show Charts button
   var showChartsBtn = document.getElementById('showChartsBtn');
   if (showChartsBtn) showChartsBtn.addEventListener('click', showCharts);
@@ -1016,4 +1025,4 @@ document.addEventListener('DOMContentLoaded', function() {
       switchChartType(tab.getAttribute('data-chart'));
     });
   });
-});
+}
