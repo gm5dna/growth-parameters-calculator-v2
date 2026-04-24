@@ -36,6 +36,24 @@ class TestCalculateEndpoint:
         assert "bmi" in results
         assert results["bmi"]["value"] > 0
 
+    def test_success_log_does_not_include_patient_sex(self, client, caplog):
+        import logging
+
+        payload = {
+            "sex": "female",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+        }
+
+        caplog.set_level(logging.INFO, logger="app")
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+
+        assert response.status_code == 200
+        messages = [record.getMessage() for record in caplog.records if record.name == "app"]
+        assert "Calculation completed" in messages
+        assert all("female" not in message and "male" not in message for message in messages)
+
     def test_weight_only(self, client):
         payload = {"sex": "female", "birth_date": "2021-01-01", "measurement_date": "2023-01-01", "weight": 12.0}
         response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
