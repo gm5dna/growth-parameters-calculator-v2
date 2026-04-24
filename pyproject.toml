@@ -1,0 +1,22 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["venv", ".venv", "node_modules", "coverage", "docs", "static/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+ignore = [
+    "E501",  # line length is soft; ruff format handles most long lines
+    "E402",  # tests mutate sys.path before imports
+    "B904",  # raise from chains optional in this codebase
+    "SIM105",  # contextlib.suppress prettier but not worth churn here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.ruff.format]
+quote-style = "double"

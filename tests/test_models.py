@@ -1,7 +1,9 @@
 """Tests for models module — wraps rcpchgrowth Measurement."""
-import pytest
 from datetime import date
-from models import create_measurement, validate_measurement_sds, extract_measurement_result
+
+import pytest
+
+from models import create_measurement, extract_measurement_result, validate_measurement_sds
 
 
 class TestCreateMeasurement:
@@ -105,6 +107,7 @@ class TestExtractMeasurementResult:
 
     def test_none_result_raises_unsupported(self):
         import pytest
+
         from models import UnsupportedCalculationError
         fake_dict = {
             "measurement_calculated_values": {

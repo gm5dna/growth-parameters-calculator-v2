@@ -1,9 +1,14 @@
 """Calculations — age, gestation correction. BSA/velocity/GH added in Phase 3."""
 import math
-from datetime import date
+
 from dateutil.relativedelta import relativedelta
 
-from constants import PRETERM_THRESHOLD_WEEKS, CBNF_BSA_TABLE, VELOCITY_MIN_INTERVAL_DAYS, GH_STANDARD_DOSE_MG_M2_WEEK
+from constants import (
+    CBNF_BSA_TABLE,
+    GH_STANDARD_DOSE_MG_M2_WEEK,
+    PRETERM_THRESHOLD_WEEKS,
+    VELOCITY_MIN_INTERVAL_DAYS,
+)
 
 
 def calculate_age_in_years(birth_date, measurement_date):

@@ -1,6 +1,5 @@
 """Integration tests for advanced clinical features."""
 import json
-import pytest
 
 
 class TestAdvancedFeatures:

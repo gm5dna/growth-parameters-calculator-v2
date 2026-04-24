@@ -1,12 +1,10 @@
 """Tests for utils module."""
-import pytest
-import math
 from utils import (
-    norm_cdf,
     calculate_mid_parental_height,
     format_error_response,
     format_success_response,
     get_chart_data,
+    norm_cdf,
 )
 
 

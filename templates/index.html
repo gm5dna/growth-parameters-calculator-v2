@@ -399,8 +399,8 @@
 
     </div><!-- /.container -->
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/chartjs-plugin-annotation.min.js') }}"></script>
     <script src="{{ url_for('static', filename='validation.js') }}"></script>
     <script src="{{ url_for('static', filename='clipboard.js') }}"></script>
     <script src="{{ url_for('static', filename='script.js') }}"></script>
