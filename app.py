@@ -450,7 +450,7 @@ def calculate():
 
     # _patient is only needed by /export-pdf; strip it from the public response.
     results.pop("_patient", None)
-    logger.info("Calculation completed for %s", data.get("sex"))
+    logger.info("Calculation completed")
     return jsonify(format_success_response(results)), 200
 
 
