@@ -57,6 +57,8 @@ module.exports = [
         // CommonJS for Jest tests
         module: "readonly",
         require: "readonly",
+        global: "readonly",
+        Element: "readonly",
         // Cross-file symbols shared via the browser window scope. The review
         // flags the script.js/charts.js module split as a future item — until
         // then, allow these names to be resolved across files.

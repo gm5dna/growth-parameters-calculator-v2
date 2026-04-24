@@ -1374,6 +1374,7 @@ if (typeof module !== 'undefined' && module.exports) {
     formatSds,
     formatCalendarAge,
     buildMeasurementSummaryRows,
+    showChartFromSummary,
     gatherFormData,
     saveFormState,
     restoreFormState,
