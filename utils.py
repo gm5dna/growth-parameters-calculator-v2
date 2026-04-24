@@ -6,6 +6,8 @@ import math
 
 from rcpchgrowth import create_chart, mid_parental_height, mid_parental_height_z
 
+from validation import validate_parent_height
+
 
 def norm_cdf(z):
     """Convert a Z-score to a centile (0-100) using the normal CDF."""
@@ -20,11 +22,13 @@ def calculate_mid_parental_height(maternal_height, paternal_height, sex):
     equivalent to PRD formula (m+p)/2 +/- 6.5) and regression-based SDS.
     Target range: MPH +/- 8.5cm per PRD-02 section 6.2.
     """
-    if maternal_height is None or paternal_height is None:
+    if maternal_height in (None, "") or paternal_height in (None, ""):
         return None
 
-    maternal_height = float(maternal_height)
-    paternal_height = float(paternal_height)
+    maternal_height = validate_parent_height(maternal_height, "Maternal")
+    paternal_height = validate_parent_height(paternal_height, "Paternal")
+    if maternal_height is None or paternal_height is None:
+        return None
 
     mph = mid_parental_height(
         maternal_height=maternal_height,

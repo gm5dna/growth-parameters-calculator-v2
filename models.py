@@ -1,7 +1,25 @@
 """Wrapper around rcpchgrowth Measurement — never call the library directly from routes."""
 from rcpchgrowth import Measurement
 
-from constants import SDS_WARNING_LIMIT, SDS_HARD_LIMIT, BMI_SDS_HARD_LIMIT
+from constants import (
+    SDS_WARNING_LIMIT,
+    SDS_HARD_LIMIT,
+    BMI_SDS_HARD_LIMIT,
+    ErrorCodes,
+)
+
+
+class UnsupportedCalculationError(Exception):
+    """Raised when rcpchgrowth returns None centile/SDS for a requested calculation."""
+
+    def __init__(self, measurement_method):
+        self.measurement_method = measurement_method
+        self.code = ErrorCodes.UNSUPPORTED_REFERENCE
+        self.message = (
+            f"The selected reference does not support this {measurement_method} "
+            "measurement for the supplied sex and age."
+        )
+        super().__init__(self.message)
 
 
 def create_measurement(sex, birth_date, measurement_date, measurement_method,
@@ -50,11 +68,19 @@ def validate_measurement_sds(sds, measurement_method):
     return warnings
 
 
-def extract_measurement_result(measurement_dict, observation_value):
-    """Extract value, centile, and SDS from a Measurement result dict."""
+def extract_measurement_result(measurement_dict, observation_value, measurement_method=None):
+    """Extract value, centile, and SDS from a Measurement result dict.
+
+    Raises UnsupportedCalculationError when rcpchgrowth produced no centile/SDS
+    (typically because the combination of reference/sex/age/method is unsupported).
+    """
     calc = measurement_dict["measurement_calculated_values"]
+    centile = calc["corrected_centile"]
+    sds = calc["corrected_sds"]
+    if centile is None or sds is None:
+        raise UnsupportedCalculationError(measurement_method or "measurement")
     return {
         "value": observation_value,
-        "centile": calc["corrected_centile"],
-        "sds": calc["corrected_sds"],
+        "centile": centile,
+        "sds": sds,
     }

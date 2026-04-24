@@ -1,12 +1,17 @@
 """Input validation — server-side is authoritative."""
+import math
 from datetime import date, datetime
 
 from constants import (
     MIN_WEIGHT_KG, MAX_WEIGHT_KG,
     MIN_HEIGHT_CM, MAX_HEIGHT_CM,
     MIN_OFC_CM, MAX_OFC_CM,
+    MIN_PARENT_HEIGHT_CM, MAX_PARENT_HEIGHT_CM,
+    MIN_BONE_AGE_YEARS, MAX_BONE_AGE_YEARS,
     MIN_GESTATION_WEEKS, MAX_GESTATION_WEEKS,
     VALID_REFERENCES, DEFAULT_REFERENCE, VALID_SEXES,
+    VALID_BONE_AGE_STANDARDS,
+    REFERENCE_CAPABILITIES,
     ErrorCodes,
 )
 
@@ -51,6 +56,11 @@ def _validate_numeric_range(value, min_val, max_val, name, error_code):
     except (TypeError, ValueError):
         raise ValidationError(
             f"{name} must be a number.",
+            error_code,
+        )
+    if not math.isfinite(value):
+        raise ValidationError(
+            f"{name} must be a finite number.",
             error_code,
         )
     if value < min_val or value > max_val:
@@ -142,4 +152,81 @@ def validate_at_least_one_measurement(weight=None, height=None, ofc=None):
         raise ValidationError(
             "At least one measurement (weight, height, or head circumference) is required.",
             ErrorCodes.MISSING_MEASUREMENT,
+        )
+
+
+def validate_parent_height(value, parent_label):
+    """Validate a parental height in cm. Returns float or None."""
+    if value is None or value == "":
+        return None
+    return _validate_numeric_range(
+        value,
+        MIN_PARENT_HEIGHT_CM,
+        MAX_PARENT_HEIGHT_CM,
+        f"{parent_label} height",
+        ErrorCodes.INVALID_INPUT,
+    )
+
+
+def validate_bone_age(value):
+    """Validate a bone-age value in years. Returns float."""
+    if value is None or value == "":
+        raise ValidationError(
+            "Bone age is required for an assessment.",
+            ErrorCodes.INVALID_INPUT,
+        )
+    return _validate_numeric_range(
+        value,
+        MIN_BONE_AGE_YEARS,
+        MAX_BONE_AGE_YEARS,
+        "Bone age",
+        ErrorCodes.INVALID_INPUT,
+    )
+
+
+def validate_bone_age_standard(value):
+    """Validate the bone-age standard. Returns the normalised value."""
+    if value is None or value == "":
+        return "gp"
+    if value not in VALID_BONE_AGE_STANDARDS:
+        raise ValidationError(
+            f"Bone age standard must be one of: {', '.join(sorted(VALID_BONE_AGE_STANDARDS))}.",
+            ErrorCodes.INVALID_INPUT,
+        )
+    return value
+
+
+def validate_reference_supports(reference, sex, measurement_method, age_years):
+    """Confirm (reference, sex, method, age) is a supported combination.
+
+    Raises ValidationError(UNSUPPORTED_REFERENCE) when unsupported.
+    Safe to call even when age_years is None (only sex/method are checked).
+    """
+    caps = REFERENCE_CAPABILITIES.get(reference)
+    if caps is None:
+        # validate_reference() should have rejected this earlier; guard anyway.
+        raise ValidationError(
+            f"Reference '{reference}' is not supported.",
+            ErrorCodes.UNSUPPORTED_REFERENCE,
+        )
+    if sex not in caps["sexes"]:
+        raise ValidationError(
+            f"The {reference} reference does not support {sex} patients.",
+            ErrorCodes.UNSUPPORTED_REFERENCE,
+        )
+    if measurement_method not in caps["methods"]:
+        raise ValidationError(
+            f"The {reference} reference does not support {measurement_method} measurements.",
+            ErrorCodes.UNSUPPORTED_REFERENCE,
+        )
+    if age_years is None:
+        return
+    overrides = caps.get("method_age_overrides", {})
+    method_limits = overrides.get(f"{measurement_method}_{sex}") or overrides.get(measurement_method)
+    min_age, max_age = method_limits if method_limits else (caps["min_age"], caps["max_age"])
+    if age_years < min_age or age_years > max_age:
+        raise ValidationError(
+            f"The {reference} reference does not support {measurement_method} at age "
+            f"{age_years:.2f} years (supported range {min_age}–{max_age} years).",
+            ErrorCodes.UNSUPPORTED_REFERENCE,
         )

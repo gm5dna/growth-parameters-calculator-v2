@@ -16,6 +16,10 @@ MIN_HEIGHT_CM = 10.0
 MAX_HEIGHT_CM = 250.0
 MIN_OFC_CM = 10.0
 MAX_OFC_CM = 100.0
+MIN_PARENT_HEIGHT_CM = 100.0
+MAX_PARENT_HEIGHT_CM = 250.0
+MIN_BONE_AGE_YEARS = 0.0
+MAX_BONE_AGE_YEARS = 20.0
 
 # Gestation
 MIN_GESTATION_WEEKS = 22
@@ -40,6 +44,7 @@ class ErrorCodes:
     SDS_OUT_OF_RANGE = "ERR_008"
     CALCULATION_ERROR = "ERR_009"
     INVALID_INPUT = "ERR_010"
+    UNSUPPORTED_REFERENCE = "ERR_011"
 
 
 # cBNF BSA lookup table: (weight_kg, bsa_m2)
@@ -72,3 +77,49 @@ VELOCITY_MIN_INTERVAL_DAYS = 122  # approximately 4 months
 # Bone age
 BONE_AGE_WINDOW_DAYS = 30.44  # approximately 1 month
 VALID_BONE_AGE_STANDARDS = {"gp", "tw3"}
+
+
+# Reference × sex × method × age capability matrix.
+# Mirrors rcpchgrowth's reference_data_absent() rules so unsupported combinations
+# can be rejected with a structured error before hitting the library.
+# method_age_overrides is keyed by "<method>" or "<method>_<sex>" (sex-specific
+# wins) and clamps the generic (min_age, max_age) for that method.
+REFERENCE_CAPABILITIES = {
+    "uk-who": {
+        "sexes": {"male", "female"},
+        "methods": {"height", "weight", "ofc", "bmi"},
+        "min_age": -0.33,  # ~23 weeks gestation
+        "max_age": 20.0,
+        "method_age_overrides": {
+            "bmi": (0.04, 20.0),       # ~42 weeks gestation (term) and above
+            "ofc_male": (-0.33, 18.0),
+            "ofc_female": (-0.33, 17.0),
+        },
+    },
+    "turners-syndrome": {
+        "sexes": {"female"},
+        "methods": {"height"},
+        "min_age": 1.0,
+        "max_age": 20.0,
+    },
+    "trisomy-21": {
+        "sexes": {"male", "female"},
+        "methods": {"height", "weight", "ofc", "bmi"},
+        "min_age": 0.0,
+        "max_age": 20.0,
+        "method_age_overrides": {
+            "bmi": (0.0, 18.82),
+            "ofc": (0.0, 18.0),
+        },
+    },
+    "cdc": {
+        "sexes": {"male", "female"},
+        "methods": {"height", "weight", "ofc", "bmi"},
+        "min_age": 0.0,
+        "max_age": 20.0,
+        "method_age_overrides": {
+            "ofc": (0.0, 3.0),
+            "bmi": (2.0, 20.0),
+        },
+    },
+}
