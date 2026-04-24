@@ -13,6 +13,7 @@ htmlcov/
 .DS_Store
 coverage/
 .playwright-cli/
+.worktrees/
 
 # Local/dev files not for repo
 CLAUDE.md
