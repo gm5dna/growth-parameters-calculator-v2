@@ -19,10 +19,9 @@ def app():
     limiter.enabled = False
     try:
         limiter.reset()
-    except Exception:
-        pass
-    yield flask_app
-    limiter.enabled = True
+        yield flask_app
+    finally:
+        limiter.enabled = True
 
 
 @pytest.fixture
