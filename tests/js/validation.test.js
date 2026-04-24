@@ -94,3 +94,27 @@ describe('validateAtLeastOneMeasurement', () => {
     expect(validateAtLeastOneMeasurement('', '', '')).toBeTruthy();
   });
 });
+
+describe('non-finite and trailing-garbage inputs', () => {
+  // parseFloat would silently accept "12abc"; the switch to Number() makes the
+  // client validator match the server.
+  test('rejects weight with trailing garbage', () => {
+    expect(validateWeight('12abc')).toBeTruthy();
+  });
+
+  test('rejects height with trailing garbage', () => {
+    expect(validateHeight('90x')).toBeTruthy();
+  });
+
+  test('rejects Infinity weight', () => {
+    expect(validateWeight('Infinity')).toBeTruthy();
+  });
+
+  test('rejects NaN weight', () => {
+    expect(validateWeight('NaN')).toBeTruthy();
+  });
+
+  test('accepts scientific notation', () => {
+    expect(validateWeight('1.2e1')).toBeNull(); // 12
+  });
+});

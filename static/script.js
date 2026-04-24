@@ -268,59 +268,67 @@ function getPreviousMeasurements() {
 /*  Previous Measurements — CSV import/export                         */
 /* ------------------------------------------------------------------ */
 
-// Strict CSV import. The accepted format is:
+// Strict CSV parser. The accepted format is:
 //
 //   date,height,weight,ofc
 //   YYYY-MM-DD,<float|empty>,<float|empty>,<float|empty>
 //
 // Rows are rejected when they don't have exactly 4 comma-separated columns,
 // when the date is not YYYY-MM-DD, or when a numeric column is not empty and
-// not a finite number. We don't attempt to handle quoted values, CRLF edge
-// cases, or escaped fields — anything more complex should be typed into the
-// UI directly.
+// not a finite number. Quoted values, CRLF edge cases, and escaped fields
+// are deliberately not supported — anything more complex should be typed
+// into the UI directly.
+//
+// Returned shape: `{ rows: Array<[date, height, weight, ofc]>, errors: string[] }`.
+// The parser is a pure function so it can be unit-tested without DOM.
+function parsePreviousMeasurementsCsv(text) {
+  var safeText = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!safeText) return { rows: [], errors: [] };
+  var lines = safeText.split('\n');
+  var errors = [];
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    var cols = line.split(',').map(function(c) { return c.trim(); });
+    if (cols.length !== 4) {
+      errors.push('Row ' + (i + 1) + ': expected 4 columns (date,height,weight,ofc)');
+      continue;
+    }
+    var date = cols[0];
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      errors.push('Row ' + (i + 1) + ': date must be YYYY-MM-DD');
+      continue;
+    }
+    var numericOk = [1, 2, 3].every(function(idx) {
+      var value = cols[idx];
+      if (value === '') return true;
+      var parsed = Number(value);
+      return Number.isFinite(parsed);
+    });
+    if (!numericOk) {
+      errors.push('Row ' + (i + 1) + ': height/weight/ofc must be numeric or blank');
+      continue;
+    }
+    rows.push(cols);
+  }
+  return { rows: rows, errors: errors };
+}
+
 function importCsv(file) {
   var reader = new FileReader();
   reader.onload = function(e) {
-    var text = String(e.target.result || '').replace(/\r\n/g, '\n').trim();
-    if (!text) return;
-    var lines = text.split('\n');
-    var errors = [];
-    var rows = [];
-    // Skip the header row.
-    for (var i = 1; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) continue;
-      var cols = line.split(',').map(function(c) { return c.trim(); });
-      if (cols.length !== 4) {
-        errors.push('Row ' + (i + 1) + ': expected 4 columns (date,height,weight,ofc)');
-        continue;
-      }
-      var date = cols[0];
-      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        errors.push('Row ' + (i + 1) + ': date must be YYYY-MM-DD');
-        continue;
-      }
-      var numericOk = [1, 2, 3].every(function(idx) {
-        var value = cols[idx];
-        if (value === '') return true;
-        var parsed = Number(value);
-        return Number.isFinite(parsed);
-      });
-      if (!numericOk) {
-        errors.push('Row ' + (i + 1) + ': height/weight/ofc must be numeric or blank');
-        continue;
-      }
-      rows.push(cols);
+    var parsed = parsePreviousMeasurementsCsv(e.target.result);
+    if (parsed.errors.length && typeof showError === 'function') {
+      showError('CSV import: ' + parsed.errors.join('; '));
     }
-    if (errors.length && typeof showError === 'function') {
-      showError('CSV import: ' + errors.join('; '));
-    }
-    rows.forEach(function(cols) {
+    parsed.rows.forEach(function(cols) {
       addPrevMeasurementRow(cols[0] || '', cols[1] || '', cols[2] || '', cols[3] || '');
     });
   };
   reader.readAsText(file);
 }
+
 
 function exportCsv() {
   var measurements = getPreviousMeasurements();
@@ -1237,6 +1245,7 @@ if (typeof module !== 'undefined' && module.exports) {
     addPrevMeasurementRow,
     getPreviousMeasurements,
     importCsv,
+    parsePreviousMeasurementsCsv,
     exportCsv,
     toggleCollapsible,
     addBoneAgeRow,
