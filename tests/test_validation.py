@@ -148,6 +148,38 @@ class TestValidateGestation:
             validate_gestation(34, 7)
         assert exc_info.value.code == "ERR_007"
 
+    @pytest.mark.parametrize("bad_weeks", [22.7, 36.5, 37.9, "22.7", "36.5"])
+    def test_rejects_non_integer_float_weeks(self, bad_weeks):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_gestation(bad_weeks, 0)
+        assert exc_info.value.code == "ERR_007"
+        assert "whole number" in exc_info.value.message.lower()
+
+    @pytest.mark.parametrize("bad_days", [2.5, "2.5"])
+    def test_rejects_non_integer_float_days(self, bad_days):
+        with pytest.raises(ValidationError):
+            validate_gestation(34, bad_days)
+
+    def test_accepts_whole_float(self):
+        # 38.0 is a whole number and should pass.
+        weeks, days = validate_gestation(38.0, 0.0)
+        assert weeks == 38
+        assert days == 0
+
+    def test_rejects_boolean(self):
+        # bool is a Python int subclass; reject explicitly.
+        with pytest.raises(ValidationError):
+            validate_gestation(True, 0)
+        # `days=False` is only evaluated when weeks are valid.
+        with pytest.raises(ValidationError):
+            validate_gestation(34, True)
+
+    def test_rejects_non_finite_weeks(self):
+        with pytest.raises(ValidationError):
+            validate_gestation(float("nan"), 0)
+        with pytest.raises(ValidationError):
+            validate_gestation(float("inf"), 0)
+
 
 class TestValidateSex:
     def test_valid_male(self):

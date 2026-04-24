@@ -63,11 +63,13 @@ Open **http://localhost:8080** in your browser.
 |--------|------|---------|
 | GET | `/` | Serve the single-page application |
 | GET | `/health` | Health check |
-| POST | `/calculate` | Growth calculations (core) |
-| POST | `/chart-data` | Centile curve data for charts |
-| POST | `/export-pdf` | PDF report generation (rate-limited: 10/min) |
+| POST | `/calculate` | Growth calculations (core) — rate-limited (default 30/min, `CALC_RATE_LIMIT`) |
+| POST | `/chart-data` | Centile curve data for charts — rate-limited (`CALC_RATE_LIMIT`) |
+| POST | `/export-pdf` | PDF report generation — rate-limited (default 10/min, `PDF_RATE_LIMIT`) |
 
 All POST endpoints accept and return `application/json`. Errors return `{ "success": false, "error": "...", "error_code": "ERR_XXX" }`.
+
+**`/export-pdf` contract:** send the same input payload as `/calculate`, plus optional `chart_images` (dict of `{chart_name: "data:image/png;base64,..."}`) and optional `patient_info` (display metadata — today the server renders only the four safety-critical fields it recomputes itself, so client-supplied keys are currently ignored). Any `results` key in the request body is **ignored** — the server always recalculates from the input payload.
 
 ### Example: Calculate
 
@@ -103,7 +105,7 @@ npm run test:coverage                  # With coverage
 python -m pytest -v && npm test
 ```
 
-**Current test suite:** 235+ backend tests, 34+ frontend tests — counts grow with each change; see CI for live numbers.
+**Current test suite:** substantial backend and frontend coverage gated at ≥ 90 % in CI; see the latest `test` job run for live numbers.
 
 ## Tech Stack
 
@@ -185,6 +187,9 @@ gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120 --access-logfile
 | `MAX_UPLOAD_BYTES` | Maximum request body size in bytes | `10485760` (10 MB) |
 | `MAX_CHART_IMAGE_BYTES` | Maximum decoded size of any single chart PNG | `2097152` (2 MB) |
 | `MAX_CHART_IMAGE_DIM` | Maximum width/height of any single chart PNG (pixels) | `4000` |
+| `MAX_CHART_IMAGES` | Maximum number of chart images accepted per `/export-pdf` request | `10` |
+| `CALC_RATE_LIMIT` | Per-IP rate limit applied to `/calculate` and `/chart-data` | `"30 per minute"` |
+| `PDF_RATE_LIMIT` | Per-IP rate limit applied to `/export-pdf` | `"10 per minute"` |
 | `RATELIMIT_STORAGE_URI` | Flask-Limiter storage URI (e.g. `redis://...`) — required when running multiple workers | `memory://` |
 
 With more than one Gunicorn worker, configure a shared rate-limiter backend (e.g. `RATELIMIT_STORAGE_URI=redis://redis:6379/0`); `memory://` is per-worker and resets on restart.

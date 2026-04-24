@@ -97,6 +97,32 @@ def validate_ofc(value):
     )
 
 
+def _to_whole_number(value, field_label):
+    """Coerce a gestation field to int, rejecting non-whole numbers.
+
+    `int(22.7)` truncates silently in Python, so JSON numbers like 22.7 would
+    otherwise pass through `int()` unchallenged. Force a round-trip check.
+    """
+    if isinstance(value, bool):  # bool is a subclass of int — reject explicitly
+        raise ValidationError(
+            f"{field_label} must be a whole number.",
+            ErrorCodes.INVALID_GESTATION,
+        )
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        raise ValidationError(
+            f"{field_label} must be a whole number.",
+            ErrorCodes.INVALID_GESTATION,
+        )
+    if not math.isfinite(as_float) or not as_float.is_integer():
+        raise ValidationError(
+            f"{field_label} must be a whole number.",
+            ErrorCodes.INVALID_GESTATION,
+        )
+    return int(as_float)
+
+
 def validate_gestation(weeks, days):
     """Validate gestation. Returns (weeks, days) tuple or None if not provided."""
     if weeks is None and days is None:
@@ -106,27 +132,13 @@ def validate_gestation(weeks, days):
             "Gestation weeks is required when days are provided.",
             ErrorCodes.INVALID_GESTATION,
         )
-    try:
-        weeks = int(weeks)
-    except (TypeError, ValueError):
-        raise ValidationError(
-            "Gestation weeks must be a whole number.",
-            ErrorCodes.INVALID_GESTATION,
-        )
+    weeks = _to_whole_number(weeks, "Gestation weeks")
     if weeks < MIN_GESTATION_WEEKS or weeks > MAX_GESTATION_WEEKS:
         raise ValidationError(
             f"Gestation weeks must be between {MIN_GESTATION_WEEKS} and {MAX_GESTATION_WEEKS}.",
             ErrorCodes.INVALID_GESTATION,
         )
-    if days is None:
-        days = 0
-    try:
-        days = int(days)
-    except (TypeError, ValueError):
-        raise ValidationError(
-            "Gestation days must be a whole number.",
-            ErrorCodes.INVALID_GESTATION,
-        )
+    days = 0 if days is None else _to_whole_number(days, "Gestation days")
     if days < 0 or days > 6:
         raise ValidationError(
             "Gestation days must be between 0 and 6.",

@@ -228,20 +228,48 @@ function updateThemeIcon() {
 /*  Previous Measurements — table row management                      */
 /* ------------------------------------------------------------------ */
 
+function _makeInputCell(attrs, value) {
+  var td = document.createElement('td');
+  var input = document.createElement('input');
+  Object.keys(attrs).forEach(function(k) { input.setAttribute(k, attrs[k]); });
+  if (value !== undefined && value !== null && value !== '') {
+    input.value = String(value);
+  }
+  td.appendChild(input);
+  return { td: td, input: input };
+}
+
+function _makeDeleteCell(onClick) {
+  var td = document.createElement('td');
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn-delete';
+  btn.setAttribute('aria-label', 'Delete row');
+  var icon = document.createElement('span');
+  icon.className = 'material-symbols-outlined';
+  icon.textContent = 'delete';
+  btn.appendChild(icon);
+  btn.addEventListener('click', onClick);
+  td.appendChild(btn);
+  return td;
+}
+
 function addPrevMeasurementRow(dateVal, heightVal, weightVal, ofcVal) {
   var tbody = document.getElementById('prevMeasurementsBody');
   if (!tbody) return;
   var tr = document.createElement('tr');
-  tr.innerHTML =
-    '<td><input type="date" class="prev-date" value="' + (dateVal || '') + '"></td>' +
-    '<td><input type="number" class="prev-height" step="0.1" min="10" max="250" value="' + (heightVal || '') + '"></td>' +
-    '<td><input type="number" class="prev-weight" step="0.01" min="0.1" max="300" value="' + (weightVal || '') + '"></td>' +
-    '<td><input type="number" class="prev-ofc" step="0.1" min="10" max="100" value="' + (ofcVal || '') + '"></td>' +
-    '<td><button type="button" class="btn-delete" aria-label="Delete row"><span class="material-symbols-outlined">delete</span></button></td>';
-  // Wire up delete button
-  tr.querySelector('.btn-delete').addEventListener('click', function() { tr.remove(); debouncedSave(); });
-  // Wire up change events for auto-save
-  tr.querySelectorAll('input').forEach(function(input) { input.addEventListener('change', debouncedSave); });
+  var dateCell = _makeInputCell({ type: 'date', class: 'prev-date' }, dateVal);
+  var heightCell = _makeInputCell({ type: 'number', class: 'prev-height', step: '0.1', min: '10', max: '250' }, heightVal);
+  var weightCell = _makeInputCell({ type: 'number', class: 'prev-weight', step: '0.01', min: '0.1', max: '300' }, weightVal);
+  var ofcCell = _makeInputCell({ type: 'number', class: 'prev-ofc', step: '0.1', min: '10', max: '100' }, ofcVal);
+  tr.appendChild(dateCell.td);
+  tr.appendChild(heightCell.td);
+  tr.appendChild(weightCell.td);
+  tr.appendChild(ofcCell.td);
+  tr.appendChild(_makeDeleteCell(function() { tr.remove(); debouncedSave(); }));
+  [dateCell.input, heightCell.input, weightCell.input, ofcCell.input].forEach(function(input) {
+    input.addEventListener('change', debouncedSave);
+  });
   tbody.appendChild(tr);
   debouncedSave();
 }
@@ -283,7 +311,8 @@ function getPreviousMeasurements() {
 // Returned shape: `{ rows: Array<[date, height, weight, ofc]>, errors: string[] }`.
 // The parser is a pure function so it can be unit-tested without DOM.
 function parsePreviousMeasurementsCsv(text) {
-  var safeText = String(text || '').replace(/\r\n/g, '\n').trim();
+  // Strip UTF-8 BOM (U+FEFF) so Excel-exported CSVs parse their first row.
+  var safeText = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trim();
   if (!safeText) return { rows: [], errors: [] };
   var lines = safeText.split('\n');
   var errors = [];
@@ -355,13 +384,29 @@ function addBoneAgeRow(dateVal, ageVal, standardVal) {
     var tbody = document.getElementById('boneAgeBody');
     if (!tbody) return;
     var tr = document.createElement('tr');
-    tr.innerHTML =
-        '<td><input type="date" class="ba-date" value="' + (dateVal || '') + '"></td>' +
-        '<td><input type="number" class="ba-age" step="0.1" min="0" max="20" value="' + (ageVal || '') + '"></td>' +
-        '<td><select class="ba-standard"><option value="gp"' + (standardVal === 'gp' || !standardVal ? ' selected' : '') + '>Greulich-Pyle</option><option value="tw3"' + (standardVal === 'tw3' ? ' selected' : '') + '>TW3</option></select></td>' +
-        '<td><button type="button" class="btn-delete" aria-label="Delete row"><span class="material-symbols-outlined">delete</span></button></td>';
-    tr.querySelector('.btn-delete').addEventListener('click', function() { tr.remove(); debouncedSave(); });
-    tr.querySelectorAll('input, select').forEach(function(el) { el.addEventListener('change', debouncedSave); });
+    var dateCell = _makeInputCell({ type: 'date', class: 'ba-date' }, dateVal);
+    var ageCell = _makeInputCell({ type: 'number', class: 'ba-age', step: '0.1', min: '0', max: '20' }, ageVal);
+
+    var standardTd = document.createElement('td');
+    var select = document.createElement('select');
+    select.className = 'ba-standard';
+    var resolvedStandard = standardVal === 'tw3' ? 'tw3' : 'gp';
+    [['gp', 'Greulich-Pyle'], ['tw3', 'TW3']].forEach(function(opt) {
+        var o = document.createElement('option');
+        o.value = opt[0];
+        o.textContent = opt[1];
+        if (opt[0] === resolvedStandard) o.selected = true;
+        select.appendChild(o);
+    });
+    standardTd.appendChild(select);
+
+    tr.appendChild(dateCell.td);
+    tr.appendChild(ageCell.td);
+    tr.appendChild(standardTd);
+    tr.appendChild(_makeDeleteCell(function() { tr.remove(); debouncedSave(); }));
+    [dateCell.input, ageCell.input, select].forEach(function(el) {
+        el.addEventListener('change', debouncedSave);
+    });
     tbody.appendChild(tr);
     debouncedSave();
 }
