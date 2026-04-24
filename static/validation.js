@@ -14,8 +14,11 @@ function validateDate(value) {
 
 function validateNumericRange(value, min, max, name) {
   if (value === '' || value === null || value === undefined) return null;
-  const num = parseFloat(value);
-  if (isNaN(num)) return name + ' must be a number.';
+  // Number() rejects strings with trailing garbage like "12abc"; parseFloat
+  // would silently accept them. Server-side validation catches this too, but
+  // keep client-side consistent.
+  const num = Number(value);
+  if (!Number.isFinite(num)) return name + ' must be a number.';
   if (num < min || num > max) return name + ' must be between ' + min + ' and ' + max + '.';
   return null;
 }

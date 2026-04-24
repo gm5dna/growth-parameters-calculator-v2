@@ -268,17 +268,56 @@ function getPreviousMeasurements() {
 /*  Previous Measurements — CSV import/export                         */
 /* ------------------------------------------------------------------ */
 
+// Strict CSV import. The accepted format is:
+//
+//   date,height,weight,ofc
+//   YYYY-MM-DD,<float|empty>,<float|empty>,<float|empty>
+//
+// Rows are rejected when they don't have exactly 4 comma-separated columns,
+// when the date is not YYYY-MM-DD, or when a numeric column is not empty and
+// not a finite number. We don't attempt to handle quoted values, CRLF edge
+// cases, or escaped fields — anything more complex should be typed into the
+// UI directly.
 function importCsv(file) {
   var reader = new FileReader();
   reader.onload = function(e) {
-    var lines = e.target.result.trim().split('\n');
-    if (lines.length < 2) return; // Need header + at least 1 row
-    // Skip header line
+    var text = String(e.target.result || '').replace(/\r\n/g, '\n').trim();
+    if (!text) return;
+    var lines = text.split('\n');
+    var errors = [];
+    var rows = [];
+    // Skip the header row.
     for (var i = 1; i < lines.length; i++) {
-      var cols = lines[i].split(',').map(function(c) { return c.trim(); });
-      if (cols.length < 1) continue;
-      addPrevMeasurementRow(cols[0] || '', cols[1] || '', cols[2] || '', cols[3] || '');
+      var line = lines[i].trim();
+      if (!line) continue;
+      var cols = line.split(',').map(function(c) { return c.trim(); });
+      if (cols.length !== 4) {
+        errors.push('Row ' + (i + 1) + ': expected 4 columns (date,height,weight,ofc)');
+        continue;
+      }
+      var date = cols[0];
+      if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        errors.push('Row ' + (i + 1) + ': date must be YYYY-MM-DD');
+        continue;
+      }
+      var numericOk = [1, 2, 3].every(function(idx) {
+        var value = cols[idx];
+        if (value === '') return true;
+        var parsed = Number(value);
+        return Number.isFinite(parsed);
+      });
+      if (!numericOk) {
+        errors.push('Row ' + (i + 1) + ': height/weight/ofc must be numeric or blank');
+        continue;
+      }
+      rows.push(cols);
     }
+    if (errors.length && typeof showError === 'function') {
+      showError('CSV import: ' + errors.join('; '));
+    }
+    rows.forEach(function(cols) {
+      addPrevMeasurementRow(cols[0] || '', cols[1] || '', cols[2] || '', cols[3] || '');
+    });
   };
   reader.readAsText(file);
 }
@@ -519,6 +558,11 @@ async function handleSubmit(event) {
     showError('Network error: unable to reach the server. Please try again.');
   } finally {
     setLoadingState(false);
+    // Clear the auto-calc flag once the submit fully resolves. The previous
+    // 100 ms setTimeout could fire before a slow request came back, which
+    // would cause the auto-triggered calculation to scroll the results
+    // section into view even though the user hadn't requested it.
+    autoCalcInProgress = false;
   }
 }
 
@@ -917,10 +961,10 @@ function autoCalculate() {
   if (!sex || !dob || !measDate) return;
   if (!weight && !height && !ofc) return;
 
-  // Flag to prevent scrolling on auto-calc
+  // Flag prevents the submit handler from scrolling the results into view
+  // during an auto-calculation; handleSubmit() clears it in its finally.
   autoCalcInProgress = true;
   if (form) form.requestSubmit();
-  setTimeout(function() { autoCalcInProgress = false; }, 100);
 }
 
 var debouncedAutoCalc = debounce(autoCalculate, 800);

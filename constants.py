@@ -1,6 +1,9 @@
 """Application constants — thresholds, ranges, error codes."""
 
 # Age limits
+# MAX_AGE_YEARS is the absolute request cap — not a reference age range.
+# Each growth reference declares its own supported age span via the
+# REFERENCE_CAPABILITIES matrix below.
 MIN_AGE_YEARS = 0.0
 MAX_AGE_YEARS = 25.0
 
