@@ -2,7 +2,7 @@
  * Clipboard formatting — plain text clinical summary.
  */
 
-function formatResultsAsText(results, patientInfo) {
+export function formatResultsAsText(results, patientInfo) {
   var lines = [];
   lines.push('GROWTH PARAMETERS');
   lines.push('=================');
@@ -88,7 +88,7 @@ function formatResultsAsText(results, patientInfo) {
   return lines.join('\n');
 }
 
-async function copyResultsToClipboard(results, patientInfo) {
+export async function copyResultsToClipboard(results, patientInfo) {
   var text = formatResultsAsText(results, patientInfo);
   try {
     await navigator.clipboard.writeText(text);
@@ -104,8 +104,4 @@ async function copyResultsToClipboard(results, patientInfo) {
     catch (e) { return false; }
     finally { document.body.removeChild(textarea); }
   }
-}
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { formatResultsAsText, copyResultsToClipboard };
 }

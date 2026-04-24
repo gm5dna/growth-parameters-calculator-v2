@@ -1,4 +1,8 @@
-const { formatResultsAsText } = require('../../static/clipboard');
+let formatResultsAsText;
+
+beforeAll(async () => {
+  ({ formatResultsAsText } = await import('../../static/clipboard.mjs'));
+});
 
 describe('formatResultsAsText', () => {
   const baseResults = {

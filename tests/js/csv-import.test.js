@@ -2,14 +2,14 @@
  * Tests for the CSV parser used by the Previous Measurements Import flow.
  *
  * We only require the parser (a pure function) — this avoids the
- * DOMContentLoaded handler in script.js triggering real DOM initialisation.
+ * DOMContentLoaded handler in main.mjs triggering real DOM initialisation.
  */
 
-// Stub document.addEventListener and minimal DOM before requiring script.js
-// so the top-level DOMContentLoaded registration doesn't throw.
-require('../../static/validation.js');
-require('../../static/clipboard.js');
-const { parsePreviousMeasurementsCsv } = require('../../static/script.js');
+let parsePreviousMeasurementsCsv;
+
+beforeAll(async () => {
+  ({ parsePreviousMeasurementsCsv } = await import('../../static/script.mjs'));
+});
 
 describe('parsePreviousMeasurementsCsv', () => {
   test('accepts a valid single row', () => {

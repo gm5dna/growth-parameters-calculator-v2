@@ -1,6 +1,6 @@
 // ESLint flat config — conservative rule set. This is a safety net for
 // obvious bugs (syntax errors, undefined globals, typos), not a style
-// enforcer. Tighten over time as the JS modules get split up.
+// enforcer.
 
 const js = require("@eslint/js");
 
@@ -14,7 +14,7 @@ module.exports = [
       ecmaVersion: 2022,
       sourceType: "script",
       globals: {
-        // Browser globals used in static/*.js
+        // Browser globals used in static app modules and Jest/jsdom tests.
         window: "readonly",
         document: "readonly",
         localStorage: "readonly",
@@ -42,8 +42,6 @@ module.exports = [
         ResizeObserver: "readonly",
         getComputedStyle: "readonly",
         matchMedia: "readonly",
-        // Third-party globals
-        Chart: "readonly",
         // Test globals (Jest)
         jest: "readonly",
         describe: "readonly",
@@ -59,23 +57,6 @@ module.exports = [
         require: "readonly",
         global: "readonly",
         Element: "readonly",
-        // Cross-file symbols shared via the browser window scope. The review
-        // flags the script.js/charts.js module split as a future item — until
-        // then, allow these names to be resolved across files.
-        lastResults: "writable",
-        lastPayload: "writable",
-        currentChart: "writable",
-        loadAndRenderChart: "readonly",
-        downloadChart: "readonly",
-        captureChartImages: "readonly",
-        copyResultsToClipboard: "readonly",
-        switchChartType: "readonly",
-        validateSex: "readonly",
-        validateDate: "readonly",
-        validateWeight: "readonly",
-        validateHeight: "readonly",
-        validateOfc: "readonly",
-        validateAtLeastOneMeasurement: "readonly",
       },
     },
     rules: {
@@ -86,10 +67,15 @@ module.exports = [
       "no-prototype-builtins": "off",
       "no-inner-declarations": "off",
       "no-useless-escape": "off",
-      // Classic browser scripts intentionally expose shared names on window until
-      // Task 5 converts the app code to ES modules. Keep local redeclare checks on.
       "no-redeclare": ["warn", { builtinGlobals: false }],
       "no-undef": "error",
+    },
+  },
+  {
+    files: ["static/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
     },
   },
 ];

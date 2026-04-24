@@ -1,10 +1,24 @@
-const {
-  buildMeasurementSummaryRows,
+let buildMeasurementSummaryRows,
   showChartFromSummary,
+  resetForm,
   __testHooks,
-} = require('../../static/script');
+  appState;
+
+beforeAll(async () => {
+  ({
+    buildMeasurementSummaryRows,
+    showChartFromSummary,
+    resetForm,
+    __testHooks,
+  } = await import('../../static/script.mjs'));
+  ({ appState } = await import('../../static/state.mjs'));
+});
 
 describe('buildMeasurementSummaryRows', () => {
+  test('can be imported without a Chart.js browser global', () => {
+    expect(buildMeasurementSummaryRows).toEqual(expect.any(Function));
+  });
+
   test('returns compact measurement rows with formatted centile and SDS', () => {
     const rows = buildMeasurementSummaryRows({
       weight: { value: 18.2, centile: 16.7, sds: -0.97 },
@@ -33,54 +47,74 @@ describe('buildMeasurementSummaryRows', () => {
 });
 
 describe('showChartFromSummary', () => {
-  // Regression: an earlier commit added this function without a test and
-  // relied on `switchChartType` being defined in charts.js (loaded as a
-  // sibling script at runtime). ESLint caught the cross-file reference once
-  // `switchChartType` was added to its globals list; this test pins the
-  // contract so any future rename fails fast.
-
   beforeEach(() => {
     document.body.innerHTML = `
       <section id="chartsSection" hidden></section>
       <button id="showChartsBtn"></button>
+      <div class="chart-tabs">
+        <button type="button" class="chart-tab active" data-chart="height" aria-selected="true">Height</button>
+        <button type="button" class="chart-tab" data-chart="weight" aria-selected="false">Weight</button>
+      </div>
+      <div id="ageRangeSelector"></div>
     `;
-    global.switchChartType = jest.fn();
+    window.Chart = jest.fn(() => ({ destroy: jest.fn() }));
+    window.Chart.register = jest.fn();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, centiles: [] }),
+    });
     // jsdom does not implement scrollIntoView.
     Element.prototype.scrollIntoView = jest.fn();
   });
 
   afterEach(() => {
-    delete global.switchChartType;
+    delete window.Chart;
+    delete global.fetch;
   });
 
-  test('reveals charts section, hides launch button, and switches chart', () => {
-    showChartFromSummary('height');
+  test('reveals charts section, hides launch button, and switches chart type', () => {
+    showChartFromSummary('weight');
 
     const section = document.getElementById('chartsSection');
     const btn = document.getElementById('showChartsBtn');
 
     expect(section.hidden).toBe(false);
     expect(btn.hidden).toBe(true);
-    expect(global.switchChartType).toHaveBeenCalledTimes(1);
-    expect(global.switchChartType).toHaveBeenCalledWith('height');
+    expect(document.querySelector('[data-chart="weight"]').classList.contains('active')).toBe(true);
+    expect(document.querySelector('[data-chart="weight"]').getAttribute('aria-selected')).toBe('true');
+    expect(global.fetch).toHaveBeenCalledWith('/chart-data', expect.objectContaining({
+      body: expect.stringContaining('"measurement_method":"weight"'),
+    }));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
       behavior: 'smooth',
       block: 'nearest',
     });
   });
 
-  test('is a no-op on switchChartType when that global is missing', () => {
-    delete global.switchChartType;
-
-    expect(() => showChartFromSummary('weight')).not.toThrow();
-    const section = document.getElementById('chartsSection');
-    expect(section.hidden).toBe(false);
-  });
-
   test('tolerates missing DOM elements', () => {
     document.body.innerHTML = '';
     expect(() => showChartFromSummary('bmi')).not.toThrow();
-    expect(global.switchChartType).toHaveBeenCalledWith('bmi');
+  });
+});
+
+describe('resetForm chart lifecycle', () => {
+  test('destroys the live Chart.js instance before clearing shared state', () => {
+    document.body.innerHTML = `
+      <form id="growthForm"></form>
+      <section id="chartsSection"></section>
+      <button id="showChartsBtn"></button>
+    `;
+    const destroy = jest.fn();
+    appState.currentChart = { destroy };
+    appState.lastResults = { age_years: 10 };
+    appState.lastPayload = { sex: 'female' };
+
+    resetForm();
+
+    expect(destroy).toHaveBeenCalledTimes(1);
+    expect(appState.currentChart).toBeNull();
+    expect(appState.lastResults).toBeNull();
+    expect(appState.lastPayload).toBeNull();
   });
 });
 

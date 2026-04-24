@@ -132,10 +132,12 @@ utils.py                MPH, chart data, response formatting
 validation.py           Server-side input validation
 pdf_utils.py            ReportLab PDF generation
 static/
-  script.js             Main frontend logic
-  charts.js             Chart.js integration and chart management
-  clipboard.js          Clipboard formatting and copy
-  validation.js         Client-side validation
+  main.mjs              Browser module entrypoint
+  script.mjs            Main frontend logic
+  charts.mjs            Chart.js integration and chart management
+  clipboard.mjs         Clipboard formatting and copy
+  validation.mjs        Client-side validation
+  state.mjs             Shared browser app state
   style.css             All styles, light/dark theme via CSS variables
 templates/
   index.html            Jinja2 SPA shell
