@@ -337,3 +337,39 @@ describe('collapsible sections', () => {
     expect(toggle.querySelector('.material-symbols-outlined').textContent).toBe('add');
   });
 });
+
+describe('advanced table row labels', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <table><tbody id="prevMeasurementsBody"></tbody></table>
+      <table><tbody id="boneAgeBody"></tbody></table>
+    `;
+  });
+
+  test('previous measurement cells include mobile data labels and input aria labels', () => {
+    __testHooks.addPreviousMeasurementRowForTest('2024-01-01', '100', '16', '50');
+
+    const cells = Array.from(document.querySelectorAll('#prevMeasurementsBody td'));
+    expect(cells.map((cell) => cell.getAttribute('data-label'))).toEqual([
+      'Date',
+      'Height (cm)',
+      'Weight (kg)',
+      'OFC (cm)',
+      'Remove',
+    ]);
+    expect(document.querySelector('.prev-height').getAttribute('aria-label')).toBe('Height (cm)');
+  });
+
+  test('bone age cells include mobile data labels and select aria label', () => {
+    __testHooks.addBoneAgeRowForTest('2024-01-01', '6.5', 'gp');
+
+    const cells = Array.from(document.querySelectorAll('#boneAgeBody td'));
+    expect(cells.map((cell) => cell.getAttribute('data-label'))).toEqual([
+      'Assessment date',
+      'Bone age (years)',
+      'Standard',
+      'Remove',
+    ]);
+    expect(document.querySelector('.ba-standard').getAttribute('aria-label')).toBe('Bone age standard');
+  });
+});

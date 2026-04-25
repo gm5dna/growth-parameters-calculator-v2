@@ -278,10 +278,12 @@ function updateThemeIcon() {
 /*  Previous Measurements — table row management                      */
 /* ------------------------------------------------------------------ */
 
-function _makeInputCell(attrs, value) {
+function _makeInputCell(attrs, value, label) {
   var td = document.createElement('td');
+  if (label) td.setAttribute('data-label', label);
   var input = document.createElement('input');
   Object.keys(attrs).forEach(function(k) { input.setAttribute(k, attrs[k]); });
+  if (label && !input.getAttribute('aria-label')) input.setAttribute('aria-label', label);
   if (value !== undefined && value !== null && value !== '') {
     input.value = String(value);
   }
@@ -291,6 +293,7 @@ function _makeInputCell(attrs, value) {
 
 function _makeDeleteCell(onClick) {
   var td = document.createElement('td');
+  td.setAttribute('data-label', 'Remove');
   var btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn-delete';
@@ -308,10 +311,10 @@ function addPrevMeasurementRow(dateVal, heightVal, weightVal, ofcVal) {
   var tbody = document.getElementById('prevMeasurementsBody');
   if (!tbody) return;
   var tr = document.createElement('tr');
-  var dateCell = _makeInputCell({ type: 'date', class: 'prev-date' }, dateVal);
-  var heightCell = _makeInputCell({ type: 'number', class: 'prev-height', step: '0.1', min: '10', max: '250' }, heightVal);
-  var weightCell = _makeInputCell({ type: 'number', class: 'prev-weight', step: '0.01', min: '0.1', max: '300' }, weightVal);
-  var ofcCell = _makeInputCell({ type: 'number', class: 'prev-ofc', step: '0.1', min: '10', max: '100' }, ofcVal);
+  var dateCell = _makeInputCell({ type: 'date', class: 'prev-date' }, dateVal, 'Date');
+  var heightCell = _makeInputCell({ type: 'number', class: 'prev-height', step: '0.1', min: '10', max: '250' }, heightVal, 'Height (cm)');
+  var weightCell = _makeInputCell({ type: 'number', class: 'prev-weight', step: '0.01', min: '0.1', max: '300' }, weightVal, 'Weight (kg)');
+  var ofcCell = _makeInputCell({ type: 'number', class: 'prev-ofc', step: '0.1', min: '10', max: '100' }, ofcVal, 'OFC (cm)');
   tr.appendChild(dateCell.td);
   tr.appendChild(heightCell.td);
   tr.appendChild(weightCell.td);
@@ -434,12 +437,14 @@ function addBoneAgeRow(dateVal, ageVal, standardVal) {
     var tbody = document.getElementById('boneAgeBody');
     if (!tbody) return;
     var tr = document.createElement('tr');
-    var dateCell = _makeInputCell({ type: 'date', class: 'ba-date' }, dateVal);
-    var ageCell = _makeInputCell({ type: 'number', class: 'ba-age', step: '0.1', min: '0', max: '20' }, ageVal);
+    var dateCell = _makeInputCell({ type: 'date', class: 'ba-date' }, dateVal, 'Assessment date');
+    var ageCell = _makeInputCell({ type: 'number', class: 'ba-age', step: '0.1', min: '0', max: '20' }, ageVal, 'Bone age (years)');
 
     var standardTd = document.createElement('td');
+    standardTd.setAttribute('data-label', 'Standard');
     var select = document.createElement('select');
     select.className = 'ba-standard';
+    select.setAttribute('aria-label', 'Bone age standard');
     var resolvedStandard = standardVal === 'tw3' ? 'tw3' : 'gp';
     [['gp', 'Greulich-Pyle'], ['tw3', 'TW3']].forEach(function(opt) {
         var o = document.createElement('option');
@@ -1444,6 +1449,8 @@ export const __testHooks = {
     displayResults(results, { suppressScroll: true });
   },
   toggleCollapsibleForTest: toggleCollapsible,
+  addPreviousMeasurementRowForTest: addPrevMeasurementRow,
+  addBoneAgeRowForTest: addBoneAgeRow,
 };
 
 export {

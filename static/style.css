@@ -1177,9 +1177,70 @@ select {
 
 /* Responsive tables */
 @media (max-width: 480px) {
-  .data-table { font-size: 12px; }
-  .data-table th, .data-table td { padding: 4px; }
-  .data-table input { padding: 4px; font-size: 12px; }
+  .data-table,
+  .data-table thead,
+  .data-table tbody,
+  .data-table tr,
+  .data-table th,
+  .data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .data-table tr {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+  }
+
+  .data-table td {
+    display: grid;
+    grid-template-columns: minmax(96px, 0.45fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .data-table input,
+  .data-table select {
+    min-width: 0;
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 16px;
+  }
+
+  .data-table .btn-delete {
+    justify-self: start;
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* ================================================================ */
