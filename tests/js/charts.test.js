@@ -80,3 +80,65 @@ describe('age range radios', () => {
     expect(radios[0].getAttribute('aria-label')).toBe('0-2 years');
   });
 });
+
+describe('chart request sequencing', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div class="chart-tabs" role="tablist" aria-label="Chart type">
+        <button type="button" class="chart-tab active" role="tab" id="chartTab-height" data-chart="height" aria-selected="true" aria-controls="growthChartPanel">Height</button>
+        <button type="button" class="chart-tab" role="tab" id="chartTab-weight" data-chart="weight" aria-selected="false" aria-controls="growthChartPanel">Weight</button>
+      </div>
+      <div id="ageRangeSelector"></div>
+      <div id="chartLoading" hidden></div>
+      <div id="chartDescription"></div>
+      <div id="growthChartPanel" role="tabpanel" aria-labelledby="chartTab-height">
+        <canvas id="growthChart"></canvas>
+      </div>
+    `;
+    appState.lastResults = {
+      age_years: 6,
+      height: { value: 114.2, centile: 36, sds: -0.36 },
+      weight: { value: 20.5, centile: 45.9, sds: -0.1 },
+    };
+    appState.lastPayload = { sex: 'male', reference: 'uk-who' };
+    window.Chart = jest.fn(() => ({ destroy: jest.fn() }));
+    window.Chart.register = jest.fn();
+    if (__chartTestHooks.resetChartRequestStateForTest) __chartTestHooks.resetChartRequestStateForTest();
+  });
+
+  afterEach(() => {
+    appState.lastResults = null;
+    appState.lastPayload = null;
+    delete window.Chart;
+    delete global.fetch;
+  });
+
+  test('older chart response does not render after a newer chart request starts', async () => {
+    let resolveFirst;
+    let resolveSecond;
+    global.fetch = jest.fn()
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve; }));
+
+    const first = __chartTestHooks.loadAndRenderChartForTest();
+    switchChartType('weight');
+    const secondResponse = {
+      ok: true,
+      json: async () => ({ success: true, centiles: [{ centile: 50, sds: 0, data: [] }] }),
+    };
+    resolveSecond(secondResponse);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const firstResponse = {
+      ok: true,
+      json: async () => ({ success: true, centiles: [{ centile: 25, sds: -0.67, data: [] }] }),
+    };
+    resolveFirst(firstResponse);
+    await first;
+    await Promise.resolve();
+
+    expect(document.querySelector('[data-chart="weight"]').getAttribute('aria-selected')).toBe('true');
+    expect(window.Chart).toHaveBeenCalled();
+  });
+});
