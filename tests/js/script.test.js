@@ -1,4 +1,5 @@
 let buildMeasurementSummaryRows,
+  buildExportPdfPayload,
   showChartFromSummary,
   resetForm,
   __testHooks,
@@ -7,6 +8,7 @@ let buildMeasurementSummaryRows,
 beforeAll(async () => {
   ({
     buildMeasurementSummaryRows,
+    buildExportPdfPayload,
     showChartFromSummary,
     resetForm,
     __testHooks,
@@ -115,6 +117,37 @@ describe('resetForm chart lifecycle', () => {
     expect(appState.currentChart).toBeNull();
     expect(appState.lastResults).toBeNull();
     expect(appState.lastPayload).toBeNull();
+  });
+});
+
+describe('buildExportPdfPayload', () => {
+  afterEach(() => {
+    appState.lastPayload = null;
+  });
+
+  test('sends calculate inputs at top level for server-side PDF recalculation', () => {
+    appState.lastPayload = {
+      sex: 'female',
+      birth_date: '2020-06-15',
+      measurement_date: '2023-06-15',
+      reference: 'uk-who',
+      weight: 14.5,
+      height: 96,
+    };
+
+    const payload = buildExportPdfPayload({ height: 'data:image/png;base64,abc' });
+
+    expect(payload).toMatchObject({
+      sex: 'female',
+      birth_date: '2020-06-15',
+      measurement_date: '2023-06-15',
+      reference: 'uk-who',
+      weight: 14.5,
+      height: 96,
+      chart_images: { height: 'data:image/png;base64,abc' },
+    });
+    expect(payload).not.toHaveProperty('results');
+    expect(payload.patient_info).toEqual({});
   });
 });
 

@@ -63,6 +63,14 @@ async function handleCopyResults() {
     showToast(success ? 'Results copied to clipboard' : 'Copy failed \u2014 please copy manually');
 }
 
+function buildExportPdfPayload(chartImages) {
+    if (!appState.lastPayload) return null;
+    return Object.assign({}, appState.lastPayload, {
+        patient_info: {},
+        chart_images: chartImages || {},
+    });
+}
+
 async function handleExportPdf() {
     if (!appState.lastResults || !appState.lastPayload) return;
     var btn = document.getElementById('exportPdfBtn');
@@ -70,16 +78,7 @@ async function handleExportPdf() {
 
     try {
         var chartImages = await captureChartImages();
-        var payload = {
-            results: appState.lastResults,
-            patient_info: {
-                sex: appState.lastPayload.sex,
-                birth_date: appState.lastPayload.birth_date,
-                measurement_date: appState.lastPayload.measurement_date,
-                reference: appState.lastPayload.reference || 'uk-who',
-            },
-            chart_images: chartImages,
-        };
+        var payload = buildExportPdfPayload(chartImages);
 
         var response = await fetch('/export-pdf', {
             method: 'POST',
@@ -1400,6 +1399,7 @@ export {
   formatSds,
   formatCalendarAge,
   buildMeasurementSummaryRows,
+  buildExportPdfPayload,
   showChartFromSummary,
   gatherFormData,
   saveFormState,
