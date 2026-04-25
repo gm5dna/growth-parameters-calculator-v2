@@ -2,6 +2,7 @@ let buildMeasurementSummaryRows,
   buildExportPdfPayload,
   showChartFromSummary,
   resetForm,
+  initApp,
   __testHooks,
   appState;
 
@@ -11,6 +12,7 @@ beforeAll(async () => {
     buildExportPdfPayload,
     showChartFromSummary,
     resetForm,
+    initApp,
     __testHooks,
   } = await import('../../static/script.mjs'));
   ({ appState } = await import('../../static/state.mjs'));
@@ -188,5 +190,121 @@ describe('updateGhDisplay', () => {
       expect(line.tagName).toBe('DIV');
       expect(line.children).toHaveLength(0);
     });
+  });
+});
+
+describe('debounce', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test('cancel prevents a pending call from firing', () => {
+    const fn = jest.fn();
+    const debounced = __testHooks.createDebounced(fn, 500);
+
+    debounced('first');
+    debounced.cancel();
+    jest.advanceTimersByTime(500);
+
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  test('flush runs the pending call immediately once', () => {
+    const fn = jest.fn();
+    const debounced = __testHooks.createDebounced(fn, 500);
+
+    debounced('first', 'second');
+    debounced.flush();
+    jest.advanceTimersByTime(500);
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn).toHaveBeenCalledWith('first', 'second');
+  });
+});
+
+describe('calculate request sequencing', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    document.body.innerHTML = `
+      <form id="growthForm">
+        <input type="radio" name="sex" id="sexMale" value="male" checked />
+        <input type="radio" name="sex" id="sexFemale" value="female" />
+        <input type="date" id="birthDate" value="2018-04-25" />
+        <input type="date" id="measurementDate" value="2024-04-25" />
+        <input type="number" id="weight" value="20.5" />
+        <input type="number" id="height" value="114.2" />
+        <input type="number" id="ofc" value="" />
+        <input type="number" id="maternalHeight" value="" />
+        <input type="number" id="paternalHeight" value="" />
+        <input type="number" id="gestationWeeks" value="" />
+        <input type="number" id="gestationDays" value="" />
+        <select id="reference"><option value="uk-who" selected>UK-WHO</option></select>
+        <input type="checkbox" id="ghTreatment" />
+        <button type="submit" id="calculateBtn">Calculate</button>
+        <button type="button" id="resetBtn">Reset</button>
+      </form>
+      <div id="errorDisplay" hidden><p id="errorMessage"></p></div>
+      <section id="resultsSection" hidden></section>
+      <div id="measurementSummary" hidden></div>
+      <div id="resultsGrid"></div>
+      <div id="warningsDisplay" hidden><ul id="warningsList"></ul></div>
+      <button id="showChartsBtn" hidden>Show Growth Charts</button>
+      <section id="chartsSection" hidden></section>
+      <div id="ghCalculator" hidden></div>
+      <div id="toast" hidden></div>
+      <div id="disclaimer"></div>
+      <button id="dismissDisclaimer"></button>
+      <button id="themeToggle"></button>
+    `;
+    Element.prototype.scrollIntoView = jest.fn();
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        results: {
+          age_years: 6,
+          age_calendar: { years: 6, months: 0, days: 0 },
+          weight: { value: 20.5, centile: 45.9, sds: -0.1 },
+        },
+      }),
+    });
+    initApp();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    delete global.fetch;
+  });
+
+  test('manual submit cancels a pending auto-calculate', async () => {
+    __testHooks.resetCalculateState();
+    __testHooks.scheduleAutoCalculate();
+
+    document.getElementById('growthForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await Promise.resolve();
+    jest.advanceTimersByTime(900);
+    await Promise.resolve();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not reveal Show Growth Charts while charts are already open', () => {
+    const charts = document.getElementById('chartsSection');
+    const button = document.getElementById('showChartsBtn');
+    charts.hidden = false;
+    button.hidden = true;
+
+    __testHooks.renderResultsForTest({
+      age_years: 6,
+      age_calendar: { years: 6, months: 0, days: 0 },
+      weight: { value: 20.5, centile: 45.9, sds: -0.1 },
+    });
+
+    expect(charts.hidden).toBe(false);
+    expect(button.hidden).toBe(true);
   });
 });
