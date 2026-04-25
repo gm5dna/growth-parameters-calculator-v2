@@ -187,22 +187,47 @@ function getDefaultAgeRange(chartType, ageYears, hasParentalHeights) {
 export function switchChartType(chartType) {
   currentChartType = chartType;
 
-  // Update active tab
-  document.querySelectorAll('.chart-tab').forEach(function(tab) {
-    if (tab.getAttribute('data-chart') === chartType) {
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-    } else {
-      tab.classList.remove('active');
-      tab.setAttribute('aria-selected', 'false');
-    }
-  });
+  syncChartTabs(chartType);
 
   // Build age range selector
   renderAgeRangeSelector(chartType);
 
   // Fetch and render
   loadAndRenderChart();
+}
+
+function syncChartTabs(chartType) {
+  var panel = document.getElementById('growthChartPanel');
+  document.querySelectorAll('.chart-tab').forEach(function(tab) {
+    var isActive = tab.getAttribute('data-chart') === chartType;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    tab.setAttribute('tabindex', isActive ? '0' : '-1');
+    if (isActive && panel && tab.id) {
+      panel.setAttribute('aria-labelledby', tab.id);
+    }
+  });
+}
+
+function handleChartTabKeydown(event) {
+  var keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (keys.indexOf(event.key) === -1) return;
+  var tabs = Array.from(document.querySelectorAll('.chart-tab'));
+  if (!tabs.length) return;
+  var currentIndex = tabs.indexOf(event.currentTarget);
+  if (currentIndex === -1) return;
+
+  event.preventDefault();
+  var nextIndex = currentIndex;
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === 'Home') nextIndex = 0;
+  if (event.key === 'End') nextIndex = tabs.length - 1;
+
+  var nextTab = tabs[nextIndex];
+  if (!nextTab) return;
+  nextTab.focus();
+  switchChartType(nextTab.getAttribute('data-chart'));
 }
 
 /* ------------------------------------------------------------------ */
@@ -232,6 +257,8 @@ function renderAgeRangeSelector(chartType) {
     radio.type = 'radio';
     radio.name = 'ageRange';
     radio.value = index;
+    radio.className = 'visually-hidden-control';
+    radio.setAttribute('aria-label', range.label.replace(/–/g, '-'));
     radio.checked = (index === defaultIndex);
     radio.addEventListener('change', function() {
       currentAgeRangeIndex = index;
@@ -1024,5 +1051,12 @@ export function initCharts() {
     tab.addEventListener('click', function() {
       switchChartType(tab.getAttribute('data-chart'));
     });
+    tab.addEventListener('keydown', handleChartTabKeydown);
   });
 }
+
+export const __chartTestHooks = {
+  renderAgeRangeSelectorForTest: renderAgeRangeSelector,
+  syncChartTabsForTest: syncChartTabs,
+  handleChartTabKeydownForTest: handleChartTabKeydown,
+};

@@ -976,7 +976,16 @@ input::placeholder {
 }
 
 .age-range-selector input[type="radio"] {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Chart container */
@@ -1009,6 +1018,19 @@ input::placeholder {
   border-color: var(--border-color);
   border-top-color: var(--accent-primary);
   margin-bottom: 12px;
+}
+
+.visually-hidden-control {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Screen reader only */
@@ -1055,7 +1077,18 @@ input::placeholder {
   transition: transform 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-#modeToggle { display: none; }
+#modeToggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 #modeToggle:checked + .toggle-slider { background: var(--accent-primary); }
 #modeToggle:checked + .toggle-slider::after { transform: translateX(20px); }
 
