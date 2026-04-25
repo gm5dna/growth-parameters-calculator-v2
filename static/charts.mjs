@@ -102,6 +102,7 @@ function getChartColors() {
 /** Cache keyed by "reference|method|sex", stores centile arrays. */
 var chartDataCache = {};
 var chartPluginsRegistered = false;
+var activeChartRequestId = 0;
 
 /* ------------------------------------------------------------------ */
 /*  Age range configuration                                           */
@@ -280,16 +281,21 @@ function renderAgeRangeSelector(chartType) {
  * appState.lastPayload (set by script.mjs after a successful calculation).
  */
 export async function loadAndRenderChart() {
+  var requestId = ++activeChartRequestId;
   var reference = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
   var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
   var ranges = AGE_RANGES[currentChartType] || [];
   var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
+  var chartTypeForRequest = currentChartType;
 
   try {
-    var centiles = await fetchChartData(reference, currentChartType, sex);
-    renderChart(centiles, ageRange, currentChartType);
+    var centiles = await fetchChartData(reference, chartTypeForRequest, sex, requestId);
+    if (requestId !== activeChartRequestId || chartTypeForRequest !== currentChartType) return;
+    renderChart(centiles, ageRange, chartTypeForRequest);
   } catch (err) {
-    console.error('Chart render failed:', err);
+    if (requestId === activeChartRequestId) {
+      console.error('Chart render failed:', err);
+    }
   }
 }
 
@@ -339,15 +345,16 @@ function closeCharts() {
  * @param {string} sex             - "male" or "female".
  * @returns {Promise<Array>}       - Array of centile objects [{centile, sds, data: [{x,y}]}].
  */
-function fetchChartData(reference, method, sex) {
+function fetchChartData(reference, method, sex, requestId) {
   var cacheKey = reference + '|' + method + '|' + sex;
+  var loadingEl = document.getElementById('chartLoading');
 
   if (chartDataCache[cacheKey]) {
+    if (loadingEl && requestId === activeChartRequestId) loadingEl.hidden = true;
     return Promise.resolve(chartDataCache[cacheKey]);
   }
 
-  var loadingEl = document.getElementById('chartLoading');
-  if (loadingEl) loadingEl.hidden = false;
+  if (loadingEl && requestId === activeChartRequestId) loadingEl.hidden = false;
 
   return fetch('/chart-data', {
     method: 'POST',
@@ -374,7 +381,7 @@ function fetchChartData(reference, method, sex) {
       return data.centiles;
     })
     .finally(function () {
-      if (loadingEl) loadingEl.hidden = true;
+      if (loadingEl && requestId === activeChartRequestId) loadingEl.hidden = true;
     });
 }
 
@@ -1059,4 +1066,9 @@ export const __chartTestHooks = {
   renderAgeRangeSelectorForTest: renderAgeRangeSelector,
   syncChartTabsForTest: syncChartTabs,
   handleChartTabKeydownForTest: handleChartTabKeydown,
+  loadAndRenderChartForTest: loadAndRenderChart,
+  resetChartRequestStateForTest: function () {
+    activeChartRequestId = 0;
+    chartDataCache = {};
+  },
 };
