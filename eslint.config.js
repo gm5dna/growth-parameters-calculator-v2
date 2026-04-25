@@ -37,6 +37,7 @@ module.exports = [
         HTMLElement: "readonly",
         Event: "readonly",
         CustomEvent: "readonly",
+        KeyboardEvent: "readonly",
         DOMParser: "readonly",
         MutationObserver: "readonly",
         ResizeObserver: "readonly",

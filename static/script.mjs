@@ -30,10 +30,43 @@ import { appState, resetAppState } from './state.mjs';
 
 function debounce(fn, delay) {
   let timer;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), delay);
+  let lastThis;
+  let lastArgs;
+
+  function clearPending() {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+
+  function debounced(...args) {
+    lastThis = this;
+    lastArgs = args;
+    clearPending();
+    timer = setTimeout(function () {
+      timer = null;
+      fn.apply(lastThis, lastArgs);
+      lastThis = undefined;
+      lastArgs = undefined;
+    }, delay);
+  }
+
+  debounced.cancel = function () {
+    clearPending();
+    lastThis = undefined;
+    lastArgs = undefined;
   };
+
+  debounced.flush = function () {
+    if (!timer) return;
+    clearPending();
+    fn.apply(lastThis, lastArgs || []);
+    lastThis = undefined;
+    lastArgs = undefined;
+  };
+
+  return debounced;
 }
 
 function showToast(message) {
@@ -117,6 +150,8 @@ async function handleExportPdf() {
 const STORAGE_KEY = 'growthCalculatorFormState';
 
 var autoCalcInProgress = false;
+var nextSubmitIsAuto = false;
+var activeCalculateRequestId = 0;
 var currentGhDose = 0;
 var currentBsa = null;
 var currentWeightKg = null;
@@ -243,10 +278,12 @@ function updateThemeIcon() {
 /*  Previous Measurements — table row management                      */
 /* ------------------------------------------------------------------ */
 
-function _makeInputCell(attrs, value) {
+function _makeInputCell(attrs, value, label) {
   var td = document.createElement('td');
+  if (label) td.setAttribute('data-label', label);
   var input = document.createElement('input');
   Object.keys(attrs).forEach(function(k) { input.setAttribute(k, attrs[k]); });
+  if (label && !input.getAttribute('aria-label')) input.setAttribute('aria-label', label);
   if (value !== undefined && value !== null && value !== '') {
     input.value = String(value);
   }
@@ -256,6 +293,7 @@ function _makeInputCell(attrs, value) {
 
 function _makeDeleteCell(onClick) {
   var td = document.createElement('td');
+  td.setAttribute('data-label', 'Remove');
   var btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn-delete';
@@ -273,10 +311,10 @@ function addPrevMeasurementRow(dateVal, heightVal, weightVal, ofcVal) {
   var tbody = document.getElementById('prevMeasurementsBody');
   if (!tbody) return;
   var tr = document.createElement('tr');
-  var dateCell = _makeInputCell({ type: 'date', class: 'prev-date' }, dateVal);
-  var heightCell = _makeInputCell({ type: 'number', class: 'prev-height', step: '0.1', min: '10', max: '250' }, heightVal);
-  var weightCell = _makeInputCell({ type: 'number', class: 'prev-weight', step: '0.01', min: '0.1', max: '300' }, weightVal);
-  var ofcCell = _makeInputCell({ type: 'number', class: 'prev-ofc', step: '0.1', min: '10', max: '100' }, ofcVal);
+  var dateCell = _makeInputCell({ type: 'date', class: 'prev-date' }, dateVal, 'Date');
+  var heightCell = _makeInputCell({ type: 'number', class: 'prev-height', step: '0.1', min: '10', max: '250' }, heightVal, 'Height (cm)');
+  var weightCell = _makeInputCell({ type: 'number', class: 'prev-weight', step: '0.01', min: '0.1', max: '300' }, weightVal, 'Weight (kg)');
+  var ofcCell = _makeInputCell({ type: 'number', class: 'prev-ofc', step: '0.1', min: '10', max: '100' }, ofcVal, 'OFC (cm)');
   tr.appendChild(dateCell.td);
   tr.appendChild(heightCell.td);
   tr.appendChild(weightCell.td);
@@ -399,12 +437,14 @@ function addBoneAgeRow(dateVal, ageVal, standardVal) {
     var tbody = document.getElementById('boneAgeBody');
     if (!tbody) return;
     var tr = document.createElement('tr');
-    var dateCell = _makeInputCell({ type: 'date', class: 'ba-date' }, dateVal);
-    var ageCell = _makeInputCell({ type: 'number', class: 'ba-age', step: '0.1', min: '0', max: '20' }, ageVal);
+    var dateCell = _makeInputCell({ type: 'date', class: 'ba-date' }, dateVal, 'Assessment date');
+    var ageCell = _makeInputCell({ type: 'number', class: 'ba-age', step: '0.1', min: '0', max: '20' }, ageVal, 'Bone age (years)');
 
     var standardTd = document.createElement('td');
+    standardTd.setAttribute('data-label', 'Standard');
     var select = document.createElement('select');
     select.className = 'ba-standard';
+    select.setAttribute('aria-label', 'Bone age standard');
     var resolvedStandard = standardVal === 'tw3' ? 'tw3' : 'gp';
     [['gp', 'Greulich-Pyle'], ['tw3', 'TW3']].forEach(function(opt) {
         var o = document.createElement('option');
@@ -446,18 +486,22 @@ function getBoneAgeAssessments() {
 /*  Collapsible section toggle                                        */
 /* ------------------------------------------------------------------ */
 
+function setCollapsibleState(toggleEl, contentEl, expanded) {
+  if (!toggleEl || !contentEl) return;
+  contentEl.hidden = !expanded;
+  toggleEl.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  var icon = toggleEl.querySelector('.material-symbols-outlined');
+  if (icon) icon.textContent = expanded ? 'remove' : 'add';
+}
+
 function toggleCollapsible(toggleEl, contentEl) {
-  if (contentEl.hidden) {
-    contentEl.hidden = false;
-    toggleEl.querySelector('.material-symbols-outlined').textContent = 'remove';
-    // Add first row if table is empty
+  var shouldExpand = contentEl.hidden;
+  setCollapsibleState(toggleEl, contentEl, shouldExpand);
+  if (shouldExpand) {
     var tbody = contentEl.querySelector('tbody');
     if (tbody && tbody.children.length === 0) {
       addPrevMeasurementRow();
     }
-  } else {
-    contentEl.hidden = true;
-    toggleEl.querySelector('.material-symbols-outlined').textContent = 'add';
   }
 }
 
@@ -596,6 +640,14 @@ function clearFieldErrors() {
 
 async function handleSubmit(event) {
   event.preventDefault();
+  var isAutoSubmit = nextSubmitIsAuto;
+  nextSubmitIsAuto = false;
+  if (!isAutoSubmit && debouncedAutoCalc.cancel) {
+    debouncedAutoCalc.cancel();
+    autoCalcInProgress = false;
+  }
+  var requestId = ++activeCalculateRequestId;
+
   clearError();
   clearFieldErrors();
 
@@ -617,21 +669,23 @@ async function handleSubmit(event) {
 
     const data = await response.json();
 
+    if (requestId !== activeCalculateRequestId) {
+      return;
+    }
+
     if (!data.success) {
       showError(data.error || 'An unknown error occurred.');
       return;
     }
 
-    displayResults(data.results);
+    displayResults(data.results, { suppressScroll: isAutoSubmit });
   } catch (err) {
     showError('Network error: unable to reach the server. Please try again.');
   } finally {
-    setLoadingState(false);
-    // Clear the auto-calc flag once the submit fully resolves. The previous
-    // 100 ms setTimeout could fire before a slow request came back, which
-    // would cause the auto-triggered calculation to scroll the results
-    // section into view even though the user hadn't requested it.
-    autoCalcInProgress = false;
+    if (requestId === activeCalculateRequestId) {
+      setLoadingState(false);
+      autoCalcInProgress = false;
+    }
   }
 }
 
@@ -838,7 +892,8 @@ function renderMeasurementSummary(rows) {
   measurementSummary.hidden = false;
 }
 
-function displayResults(results) {
+function displayResults(results, options) {
+  options = options || {};
   resultsGrid.innerHTML = '';
 
   // Hide errors
@@ -961,21 +1016,20 @@ function displayResults(results) {
   appState.lastResults = results;
   appState.lastPayload = gatherFormData();
 
-  // Show "Show Growth Charts" button
+  var chartsSection = document.getElementById('chartsSection');
+  var chartsVisible = chartsSection && !chartsSection.hidden;
   var showChartsBtn = document.getElementById('showChartsBtn');
-  if (showChartsBtn) showChartsBtn.hidden = false;
+  if (showChartsBtn) showChartsBtn.hidden = !!chartsVisible;
 
   // Show results section
   resultsSection.removeAttribute('hidden');
 
-  // Re-render charts if already visible
-  var chartsSection = document.getElementById('chartsSection');
   if (chartsSection && !chartsSection.hidden) {
     loadAndRenderChart();
   }
 
   // Scroll results into view (only on manual submit, not auto-calc)
-  if (!autoCalcInProgress) {
+  if (!options.suppressScroll) {
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
@@ -1112,7 +1166,6 @@ const debouncedSave = debounce(saveFormState, 500);
 /* ------------------------------------------------------------------ */
 
 function autoCalculate() {
-  // Only auto-calculate if minimum required fields are filled
   var sex = document.querySelector('input[name="sex"]:checked');
   var dob = document.getElementById('birthDate')?.value;
   var measDate = document.getElementById('measurementDate')?.value;
@@ -1123,9 +1176,8 @@ function autoCalculate() {
   if (!sex || !dob || !measDate) return;
   if (!weight && !height && !ofc) return;
 
-  // Flag prevents the submit handler from scrolling the results into view
-  // during an auto-calculation; handleSubmit() clears it in its finally.
   autoCalcInProgress = true;
+  nextSubmitIsAuto = true;
   if (form) form.requestSubmit();
 }
 
@@ -1178,23 +1230,15 @@ function resetForm() {
   var prevBody = document.getElementById('prevMeasurementsBody');
   if (prevBody) prevBody.innerHTML = '';
   var prevContent = document.getElementById('prevMeasurementsContent');
-  if (prevContent) prevContent.hidden = true;
   var prevToggle = document.getElementById('prevMeasurementsToggle');
-  if (prevToggle) {
-    var icon = prevToggle.querySelector('.material-symbols-outlined');
-    if (icon) icon.textContent = 'add';
-  }
+  if (prevToggle && prevContent) setCollapsibleState(prevToggle, prevContent, false);
 
   // Clear bone age assessments
   var baBody = document.getElementById('boneAgeBody');
   if (baBody) baBody.innerHTML = '';
   var baContent = document.getElementById('boneAgeContent');
-  if (baContent) baContent.hidden = true;
   var baToggle = document.getElementById('boneAgeToggle');
-  if (baToggle) {
-    var baIcon = baToggle.querySelector('.material-symbols-outlined');
-    if (baIcon) baIcon.textContent = 'add';
-  }
+  if (baToggle && baContent) setCollapsibleState(baToggle, baContent, false);
 
   // Hide chart section
   destroyChart();
@@ -1286,8 +1330,7 @@ export function initApp() {
     // Close button
     var closeBtn = prevContent.querySelector('.collapsible-close');
     if (closeBtn) closeBtn.addEventListener('click', function() {
-      prevContent.hidden = true;
-      prevToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+      setCollapsibleState(prevToggle, prevContent, false);
     });
   }
   // Add another row button
@@ -1312,20 +1355,16 @@ export function initApp() {
   var baContent = document.getElementById('boneAgeContent');
   if (baToggle && baContent) {
     baToggle.addEventListener('click', function() {
-      if (baContent.hidden) {
-        baContent.hidden = false;
-        baToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
+      var shouldExpand = baContent.hidden;
+      setCollapsibleState(baToggle, baContent, shouldExpand);
+      if (shouldExpand) {
         var tbody = document.getElementById('boneAgeBody');
         if (tbody && tbody.children.length === 0) addBoneAgeRow();
-      } else {
-        baContent.hidden = true;
-        baToggle.querySelector('.material-symbols-outlined').textContent = 'add';
       }
     });
     var baCloseBtn = baContent.querySelector('.collapsible-close');
     if (baCloseBtn) baCloseBtn.addEventListener('click', function() {
-      baContent.hidden = true;
-      baToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+      setCollapsibleState(baToggle, baContent, false);
     });
   }
   var addBaBtn = document.getElementById('addBoneAge');
@@ -1391,6 +1430,27 @@ export const __testHooks = {
     currentWeightKg = state.weightKg;
   },
   updateGhDisplay,
+  createDebounced: debounce,
+  scheduleAutoCalculate: function () {
+    debouncedAutoCalc();
+  },
+  resetCalculateState: function () {
+    autoCalcInProgress = false;
+    nextSubmitIsAuto = false;
+    activeCalculateRequestId = 0;
+    if (debouncedAutoCalc.cancel) debouncedAutoCalc.cancel();
+  },
+  renderResultsForTest: function (results) {
+    resultsGrid = document.getElementById('resultsGrid');
+    resultsSection = document.getElementById('resultsSection');
+    measurementSummary = document.getElementById('measurementSummary');
+    warningsDisplay = document.getElementById('warningsDisplay');
+    warningsList = document.getElementById('warningsList');
+    displayResults(results, { suppressScroll: true });
+  },
+  toggleCollapsibleForTest: toggleCollapsible,
+  addPreviousMeasurementRowForTest: addPrevMeasurementRow,
+  addBoneAgeRowForTest: addBoneAgeRow,
 };
 
 export {

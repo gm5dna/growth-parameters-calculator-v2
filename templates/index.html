@@ -148,10 +148,16 @@
 
                 <!-- Previous Measurements (advanced only) -->
                 <fieldset class="form-section advanced-only collapsible-section" id="prevMeasurementsSection">
-                    <div class="collapsible-header" id="prevMeasurementsToggle">
+                    <button
+                        type="button"
+                        class="collapsible-header"
+                        id="prevMeasurementsToggle"
+                        aria-expanded="false"
+                        aria-controls="prevMeasurementsContent"
+                    >
                         <span class="material-symbols-outlined" aria-hidden="true">add</span>
                         <span>Add Previous Measurement</span>
-                    </div>
+                    </button>
                     <div class="collapsible-content" id="prevMeasurementsContent" hidden>
                         <div class="collapsible-title-row">
                             <legend>Previous Measurements <span class="optional">(Optional)</span></legend>
@@ -184,10 +190,16 @@
 
                 <!-- Bone Age Assessments (advanced only) -->
                 <fieldset class="form-section advanced-only collapsible-section" id="boneAgeSection">
-                    <div class="collapsible-header" id="boneAgeToggle">
+                    <button
+                        type="button"
+                        class="collapsible-header"
+                        id="boneAgeToggle"
+                        aria-expanded="false"
+                        aria-controls="boneAgeContent"
+                    >
                         <span class="material-symbols-outlined" aria-hidden="true">add</span>
                         <span>Add Bone Age Assessment</span>
-                    </div>
+                    </button>
                     <div class="collapsible-content" id="boneAgeContent" hidden>
                         <div class="collapsible-title-row">
                             <legend>Bone Age Assessments <span class="optional">(Optional)</span></legend>
@@ -356,10 +368,10 @@
 
             <!-- Chart type tabs -->
             <div class="chart-tabs" role="tablist" aria-label="Chart type">
-                <button type="button" class="chart-tab active" role="tab" data-chart="height" aria-selected="true">Height</button>
-                <button type="button" class="chart-tab" role="tab" data-chart="weight" aria-selected="false">Weight</button>
-                <button type="button" class="chart-tab" role="tab" data-chart="bmi" aria-selected="false">BMI</button>
-                <button type="button" class="chart-tab" role="tab" data-chart="ofc" aria-selected="false">OFC</button>
+                <button type="button" class="chart-tab active" role="tab" id="chartTab-height" data-chart="height" aria-selected="true" tabindex="0" aria-controls="growthChartPanel">Height</button>
+                <button type="button" class="chart-tab" role="tab" id="chartTab-weight" data-chart="weight" aria-selected="false" tabindex="-1" aria-controls="growthChartPanel">Weight</button>
+                <button type="button" class="chart-tab" role="tab" id="chartTab-bmi" data-chart="bmi" aria-selected="false" tabindex="-1" aria-controls="growthChartPanel">BMI</button>
+                <button type="button" class="chart-tab" role="tab" id="chartTab-ofc" data-chart="ofc" aria-selected="false" tabindex="-1" aria-controls="growthChartPanel">OFC</button>
             </div>
 
             <!-- Age range selector -->
@@ -367,19 +379,21 @@
                 <!-- Populated dynamically by charts.mjs -->
             </div>
 
-            <!-- Chart loading indicator -->
-            <div class="chart-loading" id="chartLoading" hidden>
-                <div class="spinner"></div>
-                <p>Loading chart data...</p>
-            </div>
+            <div id="growthChartPanel" role="tabpanel" aria-labelledby="chartTab-height">
+                <!-- Chart loading indicator -->
+                <div class="chart-loading" id="chartLoading" hidden>
+                    <div class="spinner"></div>
+                    <p>Loading chart data...</p>
+                </div>
 
-            <!-- Chart canvas -->
-            <div class="chart-container">
-                <canvas id="growthChart" aria-label="Growth chart" role="img"></canvas>
-            </div>
+                <!-- Chart canvas -->
+                <div class="chart-container">
+                    <canvas id="growthChart" aria-label="Growth chart" role="img"></canvas>
+                </div>
 
-            <!-- Screen reader description -->
-            <div id="chartDescription" class="sr-only" aria-live="polite"></div>
+                <!-- Screen reader description -->
+                <div id="chartDescription" class="sr-only" aria-live="polite"></div>
+            </div>
         </section>
 
         <!-- Toast notification -->
