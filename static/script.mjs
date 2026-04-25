@@ -30,10 +30,43 @@ import { appState, resetAppState } from './state.mjs';
 
 function debounce(fn, delay) {
   let timer;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), delay);
+  let lastThis;
+  let lastArgs;
+
+  function clearPending() {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
+
+  function debounced(...args) {
+    lastThis = this;
+    lastArgs = args;
+    clearPending();
+    timer = setTimeout(function () {
+      timer = null;
+      fn.apply(lastThis, lastArgs);
+      lastThis = undefined;
+      lastArgs = undefined;
+    }, delay);
+  }
+
+  debounced.cancel = function () {
+    clearPending();
+    lastThis = undefined;
+    lastArgs = undefined;
   };
+
+  debounced.flush = function () {
+    if (!timer) return;
+    clearPending();
+    fn.apply(lastThis, lastArgs || []);
+    lastThis = undefined;
+    lastArgs = undefined;
+  };
+
+  return debounced;
 }
 
 function showToast(message) {
@@ -117,6 +150,8 @@ async function handleExportPdf() {
 const STORAGE_KEY = 'growthCalculatorFormState';
 
 var autoCalcInProgress = false;
+var nextSubmitIsAuto = false;
+var activeCalculateRequestId = 0;
 var currentGhDose = 0;
 var currentBsa = null;
 var currentWeightKg = null;
@@ -596,6 +631,14 @@ function clearFieldErrors() {
 
 async function handleSubmit(event) {
   event.preventDefault();
+  var isAutoSubmit = nextSubmitIsAuto;
+  nextSubmitIsAuto = false;
+  if (!isAutoSubmit && debouncedAutoCalc.cancel) {
+    debouncedAutoCalc.cancel();
+    autoCalcInProgress = false;
+  }
+  var requestId = ++activeCalculateRequestId;
+
   clearError();
   clearFieldErrors();
 
@@ -617,21 +660,23 @@ async function handleSubmit(event) {
 
     const data = await response.json();
 
+    if (requestId !== activeCalculateRequestId) {
+      return;
+    }
+
     if (!data.success) {
       showError(data.error || 'An unknown error occurred.');
       return;
     }
 
-    displayResults(data.results);
+    displayResults(data.results, { suppressScroll: isAutoSubmit });
   } catch (err) {
     showError('Network error: unable to reach the server. Please try again.');
   } finally {
-    setLoadingState(false);
-    // Clear the auto-calc flag once the submit fully resolves. The previous
-    // 100 ms setTimeout could fire before a slow request came back, which
-    // would cause the auto-triggered calculation to scroll the results
-    // section into view even though the user hadn't requested it.
-    autoCalcInProgress = false;
+    if (requestId === activeCalculateRequestId) {
+      setLoadingState(false);
+      autoCalcInProgress = false;
+    }
   }
 }
 
@@ -838,7 +883,8 @@ function renderMeasurementSummary(rows) {
   measurementSummary.hidden = false;
 }
 
-function displayResults(results) {
+function displayResults(results, options) {
+  options = options || {};
   resultsGrid.innerHTML = '';
 
   // Hide errors
@@ -961,21 +1007,20 @@ function displayResults(results) {
   appState.lastResults = results;
   appState.lastPayload = gatherFormData();
 
-  // Show "Show Growth Charts" button
+  var chartsSection = document.getElementById('chartsSection');
+  var chartsVisible = chartsSection && !chartsSection.hidden;
   var showChartsBtn = document.getElementById('showChartsBtn');
-  if (showChartsBtn) showChartsBtn.hidden = false;
+  if (showChartsBtn) showChartsBtn.hidden = !!chartsVisible;
 
   // Show results section
   resultsSection.removeAttribute('hidden');
 
-  // Re-render charts if already visible
-  var chartsSection = document.getElementById('chartsSection');
   if (chartsSection && !chartsSection.hidden) {
     loadAndRenderChart();
   }
 
   // Scroll results into view (only on manual submit, not auto-calc)
-  if (!autoCalcInProgress) {
+  if (!options.suppressScroll) {
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
@@ -1112,7 +1157,6 @@ const debouncedSave = debounce(saveFormState, 500);
 /* ------------------------------------------------------------------ */
 
 function autoCalculate() {
-  // Only auto-calculate if minimum required fields are filled
   var sex = document.querySelector('input[name="sex"]:checked');
   var dob = document.getElementById('birthDate')?.value;
   var measDate = document.getElementById('measurementDate')?.value;
@@ -1123,9 +1167,8 @@ function autoCalculate() {
   if (!sex || !dob || !measDate) return;
   if (!weight && !height && !ofc) return;
 
-  // Flag prevents the submit handler from scrolling the results into view
-  // during an auto-calculation; handleSubmit() clears it in its finally.
   autoCalcInProgress = true;
+  nextSubmitIsAuto = true;
   if (form) form.requestSubmit();
 }
 
@@ -1391,6 +1434,24 @@ export const __testHooks = {
     currentWeightKg = state.weightKg;
   },
   updateGhDisplay,
+  createDebounced: debounce,
+  scheduleAutoCalculate: function () {
+    debouncedAutoCalc();
+  },
+  resetCalculateState: function () {
+    autoCalcInProgress = false;
+    nextSubmitIsAuto = false;
+    activeCalculateRequestId = 0;
+    if (debouncedAutoCalc.cancel) debouncedAutoCalc.cancel();
+  },
+  renderResultsForTest: function (results) {
+    resultsGrid = document.getElementById('resultsGrid');
+    resultsSection = document.getElementById('resultsSection');
+    measurementSummary = document.getElementById('measurementSummary');
+    warningsDisplay = document.getElementById('warningsDisplay');
+    warningsList = document.getElementById('warningsList');
+    displayResults(results, { suppressScroll: true });
+  },
 };
 
 export {
