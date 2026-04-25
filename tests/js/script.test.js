@@ -308,3 +308,32 @@ describe('calculate request sequencing', () => {
     expect(button.hidden).toBe(true);
   });
 });
+
+describe('collapsible sections', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <button type="button" class="collapsible-header" id="prevMeasurementsToggle" aria-expanded="false" aria-controls="prevMeasurementsContent">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        <span>Add Previous Measurement</span>
+      </button>
+      <div id="prevMeasurementsContent" hidden>
+        <table><tbody id="prevMeasurementsBody"></tbody></table>
+      </div>
+    `;
+  });
+
+  test('opening and closing keeps aria-expanded and icon in sync', () => {
+    const toggle = document.getElementById('prevMeasurementsToggle');
+    const content = document.getElementById('prevMeasurementsContent');
+
+    __testHooks.toggleCollapsibleForTest(toggle, content);
+    expect(content.hidden).toBe(false);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle.querySelector('.material-symbols-outlined').textContent).toBe('remove');
+
+    __testHooks.toggleCollapsibleForTest(toggle, content);
+    expect(content.hidden).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.querySelector('.material-symbols-outlined').textContent).toBe('add');
+  });
+});

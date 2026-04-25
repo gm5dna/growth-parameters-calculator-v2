@@ -481,18 +481,22 @@ function getBoneAgeAssessments() {
 /*  Collapsible section toggle                                        */
 /* ------------------------------------------------------------------ */
 
+function setCollapsibleState(toggleEl, contentEl, expanded) {
+  if (!toggleEl || !contentEl) return;
+  contentEl.hidden = !expanded;
+  toggleEl.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  var icon = toggleEl.querySelector('.material-symbols-outlined');
+  if (icon) icon.textContent = expanded ? 'remove' : 'add';
+}
+
 function toggleCollapsible(toggleEl, contentEl) {
-  if (contentEl.hidden) {
-    contentEl.hidden = false;
-    toggleEl.querySelector('.material-symbols-outlined').textContent = 'remove';
-    // Add first row if table is empty
+  var shouldExpand = contentEl.hidden;
+  setCollapsibleState(toggleEl, contentEl, shouldExpand);
+  if (shouldExpand) {
     var tbody = contentEl.querySelector('tbody');
     if (tbody && tbody.children.length === 0) {
       addPrevMeasurementRow();
     }
-  } else {
-    contentEl.hidden = true;
-    toggleEl.querySelector('.material-symbols-outlined').textContent = 'add';
   }
 }
 
@@ -1221,23 +1225,15 @@ function resetForm() {
   var prevBody = document.getElementById('prevMeasurementsBody');
   if (prevBody) prevBody.innerHTML = '';
   var prevContent = document.getElementById('prevMeasurementsContent');
-  if (prevContent) prevContent.hidden = true;
   var prevToggle = document.getElementById('prevMeasurementsToggle');
-  if (prevToggle) {
-    var icon = prevToggle.querySelector('.material-symbols-outlined');
-    if (icon) icon.textContent = 'add';
-  }
+  if (prevToggle && prevContent) setCollapsibleState(prevToggle, prevContent, false);
 
   // Clear bone age assessments
   var baBody = document.getElementById('boneAgeBody');
   if (baBody) baBody.innerHTML = '';
   var baContent = document.getElementById('boneAgeContent');
-  if (baContent) baContent.hidden = true;
   var baToggle = document.getElementById('boneAgeToggle');
-  if (baToggle) {
-    var baIcon = baToggle.querySelector('.material-symbols-outlined');
-    if (baIcon) baIcon.textContent = 'add';
-  }
+  if (baToggle && baContent) setCollapsibleState(baToggle, baContent, false);
 
   // Hide chart section
   destroyChart();
@@ -1329,8 +1325,7 @@ export function initApp() {
     // Close button
     var closeBtn = prevContent.querySelector('.collapsible-close');
     if (closeBtn) closeBtn.addEventListener('click', function() {
-      prevContent.hidden = true;
-      prevToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+      setCollapsibleState(prevToggle, prevContent, false);
     });
   }
   // Add another row button
@@ -1355,20 +1350,16 @@ export function initApp() {
   var baContent = document.getElementById('boneAgeContent');
   if (baToggle && baContent) {
     baToggle.addEventListener('click', function() {
-      if (baContent.hidden) {
-        baContent.hidden = false;
-        baToggle.querySelector('.material-symbols-outlined').textContent = 'remove';
+      var shouldExpand = baContent.hidden;
+      setCollapsibleState(baToggle, baContent, shouldExpand);
+      if (shouldExpand) {
         var tbody = document.getElementById('boneAgeBody');
         if (tbody && tbody.children.length === 0) addBoneAgeRow();
-      } else {
-        baContent.hidden = true;
-        baToggle.querySelector('.material-symbols-outlined').textContent = 'add';
       }
     });
     var baCloseBtn = baContent.querySelector('.collapsible-close');
     if (baCloseBtn) baCloseBtn.addEventListener('click', function() {
-      baContent.hidden = true;
-      baToggle.querySelector('.material-symbols-outlined').textContent = 'add';
+      setCollapsibleState(baToggle, baContent, false);
     });
   }
   var addBaBtn = document.getElementById('addBoneAge');
@@ -1452,6 +1443,7 @@ export const __testHooks = {
     warningsList = document.getElementById('warningsList');
     displayResults(results, { suppressScroll: true });
   },
+  toggleCollapsibleForTest: toggleCollapsible,
 };
 
 export {
