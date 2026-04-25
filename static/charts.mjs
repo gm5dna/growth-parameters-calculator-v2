@@ -102,6 +102,7 @@ function getChartColors() {
 /** Cache keyed by "reference|method|sex", stores centile arrays. */
 var chartDataCache = {};
 var chartPluginsRegistered = false;
+var activeChartRequestId = 0;
 
 /* ------------------------------------------------------------------ */
 /*  Age range configuration                                           */
@@ -187,22 +188,47 @@ function getDefaultAgeRange(chartType, ageYears, hasParentalHeights) {
 export function switchChartType(chartType) {
   currentChartType = chartType;
 
-  // Update active tab
-  document.querySelectorAll('.chart-tab').forEach(function(tab) {
-    if (tab.getAttribute('data-chart') === chartType) {
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-    } else {
-      tab.classList.remove('active');
-      tab.setAttribute('aria-selected', 'false');
-    }
-  });
+  syncChartTabs(chartType);
 
   // Build age range selector
   renderAgeRangeSelector(chartType);
 
   // Fetch and render
   loadAndRenderChart();
+}
+
+function syncChartTabs(chartType) {
+  var panel = document.getElementById('growthChartPanel');
+  document.querySelectorAll('.chart-tab').forEach(function(tab) {
+    var isActive = tab.getAttribute('data-chart') === chartType;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    tab.setAttribute('tabindex', isActive ? '0' : '-1');
+    if (isActive && panel && tab.id) {
+      panel.setAttribute('aria-labelledby', tab.id);
+    }
+  });
+}
+
+function handleChartTabKeydown(event) {
+  var keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (keys.indexOf(event.key) === -1) return;
+  var tabs = Array.from(document.querySelectorAll('.chart-tab'));
+  if (!tabs.length) return;
+  var currentIndex = tabs.indexOf(event.currentTarget);
+  if (currentIndex === -1) return;
+
+  event.preventDefault();
+  var nextIndex = currentIndex;
+  if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === 'Home') nextIndex = 0;
+  if (event.key === 'End') nextIndex = tabs.length - 1;
+
+  var nextTab = tabs[nextIndex];
+  if (!nextTab) return;
+  nextTab.focus();
+  switchChartType(nextTab.getAttribute('data-chart'));
 }
 
 /* ------------------------------------------------------------------ */
@@ -232,6 +258,8 @@ function renderAgeRangeSelector(chartType) {
     radio.type = 'radio';
     radio.name = 'ageRange';
     radio.value = index;
+    radio.className = 'visually-hidden-control';
+    radio.setAttribute('aria-label', range.label.replace(/–/g, '-'));
     radio.checked = (index === defaultIndex);
     radio.addEventListener('change', function() {
       currentAgeRangeIndex = index;
@@ -253,16 +281,21 @@ function renderAgeRangeSelector(chartType) {
  * appState.lastPayload (set by script.mjs after a successful calculation).
  */
 export async function loadAndRenderChart() {
+  var requestId = ++activeChartRequestId;
   var reference = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
   var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
   var ranges = AGE_RANGES[currentChartType] || [];
   var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
+  var chartTypeForRequest = currentChartType;
 
   try {
-    var centiles = await fetchChartData(reference, currentChartType, sex);
-    renderChart(centiles, ageRange, currentChartType);
+    var centiles = await fetchChartData(reference, chartTypeForRequest, sex, requestId);
+    if (requestId !== activeChartRequestId || chartTypeForRequest !== currentChartType) return;
+    renderChart(centiles, ageRange, chartTypeForRequest);
   } catch (err) {
-    console.error('Chart render failed:', err);
+    if (requestId === activeChartRequestId) {
+      console.error('Chart render failed:', err);
+    }
   }
 }
 
@@ -312,15 +345,16 @@ function closeCharts() {
  * @param {string} sex             - "male" or "female".
  * @returns {Promise<Array>}       - Array of centile objects [{centile, sds, data: [{x,y}]}].
  */
-function fetchChartData(reference, method, sex) {
+function fetchChartData(reference, method, sex, requestId) {
   var cacheKey = reference + '|' + method + '|' + sex;
+  var loadingEl = document.getElementById('chartLoading');
 
   if (chartDataCache[cacheKey]) {
+    if (loadingEl && requestId === activeChartRequestId) loadingEl.hidden = true;
     return Promise.resolve(chartDataCache[cacheKey]);
   }
 
-  var loadingEl = document.getElementById('chartLoading');
-  if (loadingEl) loadingEl.hidden = false;
+  if (loadingEl && requestId === activeChartRequestId) loadingEl.hidden = false;
 
   return fetch('/chart-data', {
     method: 'POST',
@@ -347,7 +381,7 @@ function fetchChartData(reference, method, sex) {
       return data.centiles;
     })
     .finally(function () {
-      if (loadingEl) loadingEl.hidden = true;
+      if (loadingEl && requestId === activeChartRequestId) loadingEl.hidden = true;
     });
 }
 
@@ -1024,5 +1058,17 @@ export function initCharts() {
     tab.addEventListener('click', function() {
       switchChartType(tab.getAttribute('data-chart'));
     });
+    tab.addEventListener('keydown', handleChartTabKeydown);
   });
 }
+
+export const __chartTestHooks = {
+  renderAgeRangeSelectorForTest: renderAgeRangeSelector,
+  syncChartTabsForTest: syncChartTabs,
+  handleChartTabKeydownForTest: handleChartTabKeydown,
+  loadAndRenderChartForTest: loadAndRenderChart,
+  resetChartRequestStateForTest: function () {
+    activeChartRequestId = 0;
+    chartDataCache = {};
+  },
+};
