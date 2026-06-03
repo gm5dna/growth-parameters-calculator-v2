@@ -496,6 +496,9 @@ function getMeasurementPoint(chartType) {
   if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return null;
   var measurement = appState.lastResults[chartType];
   if (!measurement || measurement.value === undefined) return null;
+  // Guard age_years too: without it the point's x is undefined, which later
+  // throws in the sr-only description (`measurementPoint.x.toFixed(2)`).
+  if (appState.lastResults.age_years === undefined) return null;
 
   // Per RCPCH guidance: plot at chronological age, then draw arrow back
   // to corrected age to show gestational correction
@@ -848,6 +851,11 @@ function renderChart(centiles, ageRange, chartType) {
             label: function(context) {
               var point = context.raw;
               var datasetLabel = context.dataset.label || '';
+
+              // A hover can fire after appState.lastResults has been cleared
+              // (e.g. during reset, before the canvas is destroyed). Bail out
+              // rather than dereferencing null below.
+              if (!appState.lastResults) return '';
 
               // Gestation correction arrow tip (corrected age)
               if (datasetLabel.indexOf('Gestation correction') === 0) {

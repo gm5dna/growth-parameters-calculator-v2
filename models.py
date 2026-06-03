@@ -9,6 +9,17 @@ from constants import (
 )
 
 
+class SdsOutOfRangeError(ValueError):
+    """Raised when a measurement's SDS exceeds the hard limit.
+
+    Subclasses ValueError so existing callers/tests that catch ValueError keep
+    working, but carries an explicit error code so the HTTP layer no longer has
+    to infer the code by string-matching the message.
+    """
+
+    code = ErrorCodes.SDS_OUT_OF_RANGE
+
+
 class UnsupportedCalculationError(Exception):
     """Raised when rcpchgrowth returns None centile/SDS for a requested calculation."""
 
@@ -53,8 +64,14 @@ def validate_measurement_sds(sds, measurement_method):
     hard_limit = BMI_SDS_HARD_LIMIT if measurement_method == "bmi" else SDS_HARD_LIMIT
     abs_sds = abs(sds)
 
+    # Intentional: exceeding the hard limit raises, which aborts the ENTIRE
+    # request (current and previous measurements alike) rather than dropping
+    # only the offending value. This is a deliberate clinical-safety choice —
+    # a physiologically implausible SDS forces the user to correct the input
+    # before any output is produced. Do not soften to a per-measurement skip
+    # without a product decision.
     if abs_sds > hard_limit:
-        raise ValueError(
+        raise SdsOutOfRangeError(
             f"SDS ({sds:.1f}) exceeds acceptable range "
             f"(\u00b1{hard_limit} SDS). Please check measurement accuracy."
         )

@@ -10,12 +10,15 @@ beforeAll(async () => {
   ({ saveFormState } = await import('../../static/script.mjs'));
 });
 
-const PERMITTED_KEYS = new Set(['sex', 'reference', 'ghTreatment', 'advancedMode']);
+// sex and ghTreatment are deliberately NOT persisted: on a shared NHS machine
+// the next user must not inherit them, and GH-treatment status is clinical.
+const PERMITTED_KEYS = new Set(['reference', 'advancedMode']);
 const PHI_LIKE_NAMES = [
   'birthDate', 'birth_date', 'measurementDate', 'measurement_date',
   'weight', 'height', 'ofc', 'maternalHeight', 'paternalHeight',
   'maternal_height', 'paternal_height', 'previousMeasurements',
   'boneAgeAssessments', 'bone_age', 'gestationWeeks', 'gestationDays',
+  'sex', 'ghTreatment',
 ];
 
 function buildFormHtml() {
@@ -64,17 +67,17 @@ describe('saveFormState', () => {
     });
   });
 
-  test('persists sex and reference', () => {
+  test('persists reference preference', () => {
     saveFormState();
     const state = JSON.parse(localStorage.getItem('growthCalculatorFormState'));
-    expect(state.sex).toBe('male');
     expect(state.reference).toBe('uk-who');
   });
 
-  test('persists non-identifying toggle state', () => {
+  test('persists advanced-mode toggle but NOT sex or ghTreatment', () => {
     saveFormState();
     const state = JSON.parse(localStorage.getItem('growthCalculatorFormState'));
-    expect(state.ghTreatment).toBe(true);
     expect(state.advancedMode).toBe(true);
+    expect(state).not.toHaveProperty('sex');
+    expect(state).not.toHaveProperty('ghTreatment');
   });
 });

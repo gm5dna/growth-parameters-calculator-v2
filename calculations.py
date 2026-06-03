@@ -8,13 +8,25 @@ from constants import (
     GH_STANDARD_DOSE_MG_M2_WEEK,
     PRETERM_THRESHOLD_WEEKS,
     VELOCITY_MIN_INTERVAL_DAYS,
+    ErrorCodes,
 )
+
+
+class MeasurementDateError(ValueError):
+    """Raised when a measurement date precedes the birth date.
+
+    Subclasses ValueError for backwards compatibility, but carries the
+    INVALID_DATE_RANGE code so the HTTP layer can map it without inspecting
+    the message text.
+    """
+
+    code = ErrorCodes.INVALID_DATE_RANGE
 
 
 def calculate_age_in_years(birth_date, measurement_date):
     """Calculate decimal age in years. Allows age=0 (same-day, e.g. birth weight)."""
     if measurement_date < birth_date:
-        raise ValueError("Measurement date must not be before birth date.")
+        raise MeasurementDateError("Measurement date must not be before birth date.")
     return (measurement_date - birth_date).days / 365.25
 
 
@@ -65,11 +77,14 @@ def calculate_cbnf_bsa(weight_kg):
     if weight_kg <= table[0][0]:
         return table[0][1]
 
+    # Clamp to the top tabulated value rather than extrapolating. The cBNF
+    # table only covers 1-90 kg; linear extrapolation beyond it produced
+    # physiologically impossible areas (e.g. ~5.35 m2 at 300 kg) that then
+    # drove the GH initial-dose calculation. Weight-only BSA above the table
+    # is unusual (height is normally present); returning the top value is
+    # safer than fabricating one outside the validated domain.
     if weight_kg >= table[-1][0]:
-        w1, b1 = table[-2]
-        w2, b2 = table[-1]
-        slope = (b2 - b1) / (w2 - w1)
-        return round(b2 + slope * (weight_kg - w2), 2)
+        return table[-1][1]
 
     for i in range(len(table) - 1):
         w1, b1 = table[i]

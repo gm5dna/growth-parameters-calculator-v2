@@ -147,6 +147,35 @@ def validate_gestation(weeks, days):
     return weeks, days
 
 
+def validate_object_list(value, field_label, max_items):
+    """Validate a client-supplied nested list of objects.
+
+    Returns the list unchanged (an empty list when not provided). Raises
+    ValidationError when the value is not a list, exceeds ``max_items``, or
+    contains a non-object entry — so a malformed payload (e.g. a bare string)
+    cannot reach the iteration code as a 500 or be silently echoed back.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValidationError(
+            f"{field_label} must be a list.",
+            ErrorCodes.INVALID_INPUT,
+        )
+    if len(value) > max_items:
+        raise ValidationError(
+            f"{field_label} must contain at most {max_items} entries.",
+            ErrorCodes.INVALID_INPUT,
+        )
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise ValidationError(
+                f"Each {field_label} entry must be an object.",
+                ErrorCodes.INVALID_INPUT,
+            )
+    return value
+
+
 def validate_sex(value):
     if not value or value not in VALID_SEXES:
         raise ValidationError(
