@@ -1,6 +1,7 @@
 /**
  * Clipboard formatting — plain text clinical summary.
  */
+import { formatCentile, formatSds } from './format.mjs';
 
 export function formatResultsAsText(results, patientInfo) {
   var lines = [];
@@ -28,8 +29,8 @@ export function formatResultsAsText(results, patientInfo) {
     var formattedValue = (typeof data.value === 'number') ? data.value.toFixed(1) : data.value;
     var valueStr = m.unit ? formattedValue + ' ' + m.unit : formattedValue;
     lines.push(m.label + ': ' + valueStr);
-    if (data.centile !== null && data.centile !== undefined) lines.push('  Centile: ' + data.centile.toFixed(1) + '%');
-    if (data.sds !== null && data.sds !== undefined) lines.push('  SDS: ' + (data.sds >= 0 ? '+' : '') + data.sds.toFixed(2));
+    if (data.centile !== null && data.centile !== undefined) lines.push('  Centile: ' + formatCentile(data.centile));
+    if (data.sds !== null && data.sds !== undefined) lines.push('  SDS: ' + formatSds(data.sds));
     if (m.key === 'bmi' && data.percentage_median !== null && data.percentage_median !== undefined) {
       lines.push('  % Median: ' + data.percentage_median.toFixed(1) + '%');
     }
@@ -57,7 +58,7 @@ export function formatResultsAsText(results, patientInfo) {
   if (results.bone_age_height) {
     var ba = results.bone_age_height;
     var chronAge = results.age_years !== undefined ? results.age_years.toFixed(1) : 'N/A';
-    var baSds = (ba.sds !== null && ba.sds !== undefined) ? ' (SDS ' + (ba.sds >= 0 ? '+' : '') + ba.sds.toFixed(2) + ')' : '';
+    var baSds = (ba.sds !== null && ba.sds !== undefined) ? ' (SDS ' + formatSds(ba.sds) + ')' : '';
     lines.push('Bone Age: ' + ba.bone_age + ' years vs chronological age ' + chronAge + ' years' + baSds);
     lines.push('  Standard: ' + (ba.standard === 'gp' ? 'Greulich-Pyle' : 'TW3'));
     lines.push('');

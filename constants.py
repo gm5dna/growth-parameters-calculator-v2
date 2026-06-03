@@ -77,6 +77,12 @@ GH_PEN_DEVICES = [
 # Height velocity
 VELOCITY_MIN_INTERVAL_DAYS = 122  # approximately 4 months
 
+# Upper bounds on client-supplied nested lists. These are validated as bounded
+# lists of objects before iteration so a malformed or oversized payload returns
+# a structured 400 rather than a 500 or an expensive run.
+MAX_PREVIOUS_MEASUREMENTS = 50
+MAX_BONE_AGE_ASSESSMENTS = 20
+
 # Bone age
 BONE_AGE_WINDOW_DAYS = 30.44  # approximately 1 month
 VALID_BONE_AGE_STANDARDS = {"gp", "tw3"}

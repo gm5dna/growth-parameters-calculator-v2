@@ -401,12 +401,9 @@ class GrowthReportPDF:
             mph_val = self._fmt_value(mph.get("mid_parental_height"), 1)
             lower = self._fmt_value(mph.get("target_range_lower"), 1)
             upper = self._fmt_value(mph.get("target_range_upper"), 1)
-            centile = self._fmt_centile(mph.get("mid_parental_height_centile"))
-            sds = self._fmt_sds(mph.get("mid_parental_height_sds"))
             items.append(
                 f"\u2022 <b>Mid-parental height:</b> {mph_val} cm "
-                f"(target range {lower}\u2013{upper} cm, "
-                f"centile {centile}, SDS {sds})"
+                f"(target range {lower}\u2013{upper} cm)"
             )
 
         # Bone age

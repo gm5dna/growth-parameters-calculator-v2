@@ -15,6 +15,7 @@ import {
   validateAtLeastOneMeasurement,
 } from './validation.mjs';
 import { copyResultsToClipboard } from './clipboard.mjs';
+import { formatCentile, formatSds } from './format.mjs';
 import {
   captureChartImages,
   destroyChart,
@@ -149,7 +150,6 @@ async function handleExportPdf() {
 
 const STORAGE_KEY = 'growthCalculatorFormState';
 
-var autoCalcInProgress = false;
 var nextSubmitIsAuto = false;
 var activeCalculateRequestId = 0;
 var currentGhDose = 0;
@@ -363,6 +363,12 @@ function getPreviousMeasurements() {
 //
 // Returned shape: `{ rows: Array<[date, height, weight, ofc]>, errors: string[] }`.
 // The parser is a pure function so it can be unit-tested without DOM.
+// Caps to stop a large/mistaken CSV from freezing the tab. MAX_CSV_ROWS
+// mirrors the server's MAX_PREVIOUS_MEASUREMENTS; MAX_CSV_BYTES guards the
+// read itself.
+const MAX_CSV_ROWS = 50;
+const MAX_CSV_BYTES = 1024 * 1024; // 1 MB
+
 function parsePreviousMeasurementsCsv(text) {
   // Strip UTF-8 BOM (U+FEFF) so Excel-exported CSVs parse their first row.
   var safeText = String(text || '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').trim();
@@ -371,6 +377,10 @@ function parsePreviousMeasurementsCsv(text) {
   var errors = [];
   var rows = [];
   for (var i = 1; i < lines.length; i++) {
+    if (rows.length >= MAX_CSV_ROWS) {
+      errors.push('CSV import limited to ' + MAX_CSV_ROWS + ' rows; remaining rows ignored');
+      break;
+    }
     var line = lines[i].trim();
     if (!line) continue;
     var cols = line.split(',').map(function(c) { return c.trim(); });
@@ -399,6 +409,12 @@ function parsePreviousMeasurementsCsv(text) {
 }
 
 function importCsv(file) {
+  if (file && file.size > MAX_CSV_BYTES) {
+    if (typeof showError === 'function') {
+      showError('CSV import: file is too large (limit ' + (MAX_CSV_BYTES / 1024) + ' KB).');
+    }
+    return;
+  }
   var reader = new FileReader();
   reader.onload = function(e) {
     var parsed = parsePreviousMeasurementsCsv(e.target.result);
@@ -644,9 +660,7 @@ async function handleSubmit(event) {
   nextSubmitIsAuto = false;
   if (!isAutoSubmit && debouncedAutoCalc.cancel) {
     debouncedAutoCalc.cancel();
-    autoCalcInProgress = false;
   }
-  var requestId = ++activeCalculateRequestId;
 
   clearError();
   clearFieldErrors();
@@ -657,6 +671,12 @@ async function handleSubmit(event) {
   if (!runClientValidation(payload)) {
     return;
   }
+
+  // Bump the request id only AFTER validation passes. Otherwise a superseding
+  // submit that fails validation would advance activeCalculateRequestId and
+  // strand an in-flight valid request — its finally{} would no longer match,
+  // leaving the button stuck on the spinner.
+  var requestId = ++activeCalculateRequestId;
 
   setLoadingState(true);
 
@@ -678,13 +698,12 @@ async function handleSubmit(event) {
       return;
     }
 
-    displayResults(data.results, { suppressScroll: isAutoSubmit });
+    displayResults(data.results, { suppressScroll: isAutoSubmit }, payload);
   } catch (err) {
     showError('Network error: unable to reach the server. Please try again.');
   } finally {
     if (requestId === activeCalculateRequestId) {
       setLoadingState(false);
-      autoCalcInProgress = false;
     }
   }
 }
@@ -698,7 +717,13 @@ function setLoadingState(loading) {
 
   if (loading) {
     calculateBtn.disabled = true;
-    calculateBtn.setAttribute('data-original-text', calculateBtn.innerHTML);
+    // Only capture the original label once. Under concurrent submits (an
+    // auto-calc racing a manual submit) the button may already show the
+    // spinner; capturing that as the "original" would leave it stuck on
+    // "Calculating\u2026" forever.
+    if (!calculateBtn.hasAttribute('data-original-text')) {
+      calculateBtn.setAttribute('data-original-text', calculateBtn.innerHTML);
+    }
     calculateBtn.innerHTML =
       '<span class="spinner" aria-hidden="true"></span> Calculating\u2026';
   } else {
@@ -729,17 +754,6 @@ function clearError() {
 /* ------------------------------------------------------------------ */
 /*  Format helpers                                                    */
 /* ------------------------------------------------------------------ */
-
-function formatCentile(centile) {
-  if (centile === null || centile === undefined) return 'N/A';
-  return centile.toFixed(1) + '%';
-}
-
-function formatSds(sds) {
-  if (sds === null || sds === undefined) return 'N/A';
-  const sign = sds >= 0 ? '+' : '';
-  return sign + sds.toFixed(2);
-}
 
 function formatCalendarAge(ageCal) {
   if (!ageCal) return '';
@@ -892,7 +906,7 @@ function renderMeasurementSummary(rows) {
   measurementSummary.hidden = false;
 }
 
-function displayResults(results, options) {
+function displayResults(results, options, payload) {
   options = options || {};
   resultsGrid.innerHTML = '';
 
@@ -934,12 +948,6 @@ function displayResults(results, options) {
         'Target: ' + mph.target_range_lower.toFixed(1) + ' \u2013 ' +
         mph.target_range_upper.toFixed(1) + ' cm'
       );
-    }
-    if (mph.mid_parental_height_centile !== undefined) {
-      subs.push('Centile: ' + formatCentile(mph.mid_parental_height_centile));
-    }
-    if (mph.mid_parental_height_sds !== undefined) {
-      subs.push('SDS: ' + formatSds(mph.mid_parental_height_sds));
     }
 
     resultsGrid.appendChild(createResultCard('MID-PARENTAL HEIGHT', value, subs));
@@ -995,8 +1003,11 @@ function displayResults(results, options) {
     if (ghCalc) {
       ghCalc.hidden = false;
       if (results.bsa) currentBsa = results.bsa.value;
-      // Read weight directly from the form (appState.lastPayload may not be set yet)
-      var weightVal = document.getElementById('weight')?.value;
+      // Use the weight from the SUBMITTED payload (not a fresh DOM read) so a
+      // mid-flight form edit can't desync the GH mcg/kg/day figure from the
+      // results. Fall back to the DOM only when no payload was supplied
+      // (e.g. the test-only render helper).
+      var weightVal = payload ? payload.weight : document.getElementById('weight')?.value;
       if (weightVal) currentWeightKg = parseFloat(weightVal);
       var pen = getSelectedPen();
       currentGhDose = roundToStep(results.gh_dose.initial_daily_dose, pen.step);
@@ -1012,9 +1023,11 @@ function displayResults(results, options) {
   // --- Warnings ---
   displayWarnings(results.validation_messages);
 
-  // Store results for chart access
+  // Store results for chart access. Bind the EXACT payload that produced these
+  // results — not a fresh DOM read — so charts/PDF export stay consistent even
+  // if the form was edited while the request was in flight.
   appState.lastResults = results;
-  appState.lastPayload = gatherFormData();
+  appState.lastPayload = payload || gatherFormData();
 
   var chartsSection = document.getElementById('chartsSection');
   var chartsVisible = chartsSection && !chartsSection.hidden;
@@ -1099,17 +1112,15 @@ function dismissDisclaimer() {
 const PERSISTED_PREFERENCE_KEYS = ['reference'];
 
 function saveFormState() {
-  const state = {
-    sex: document.querySelector('input[name="sex"]:checked')?.value || '',
-  };
+  // Persist ONLY non-clinical UI preferences. sex and GH-treatment status are
+  // deliberately NOT persisted: on a shared NHS machine the next user must not
+  // inherit them, and GH treatment status is clinical information.
+  const state = {};
 
   PERSISTED_PREFERENCE_KEYS.forEach(function (id) {
     const el = document.getElementById(id);
     if (el && el.value) state[id] = el.value;
   });
-
-  var ghCheck = document.getElementById('ghTreatment');
-  if (ghCheck) state.ghTreatment = ghCheck.checked;
 
   var modeCheck = document.getElementById('modeToggle');
   if (modeCheck) state.advancedMode = modeCheck.checked;
@@ -1133,25 +1144,14 @@ function restoreFormState() {
 
   if (!state) return;
 
-  if (state.sex === 'male') {
-    const el = document.getElementById('sexMale');
-    if (el) el.checked = true;
-  } else if (state.sex === 'female') {
-    const el = document.getElementById('sexFemale');
-    if (el) el.checked = true;
-  }
-
+  // sex and ghTreatment are intentionally no longer persisted or restored
+  // (see saveFormState). Older stored state may still contain them; ignore it.
   PERSISTED_PREFERENCE_KEYS.forEach(function (id) {
     if (state[id]) {
       const el = document.getElementById(id);
       if (el) el.value = state[id];
     }
   });
-
-  if (state.ghTreatment) {
-    var ghEl = document.getElementById('ghTreatment');
-    if (ghEl) ghEl.checked = true;
-  }
 
   if (state.advancedMode) {
     var modeEl = document.getElementById('modeToggle');
@@ -1176,7 +1176,6 @@ function autoCalculate() {
   if (!sex || !dob || !measDate) return;
   if (!weight && !height && !ofc) return;
 
-  autoCalcInProgress = true;
   nextSubmitIsAuto = true;
   if (form) form.requestSubmit();
 }
@@ -1258,7 +1257,12 @@ function handleKeyboardShortcuts(event) {
   if (event.key === 'c' && (event.ctrlKey || event.metaKey)) {
     var activeTag = document.activeElement ? document.activeElement.tagName : '';
     var resultsVisible = resultsSection && !resultsSection.hidden;
-    if (resultsVisible && activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && activeTag !== 'SELECT') {
+    // Don't hijack copy when the user has actually selected text — they're
+    // trying to copy their selection, not the results summary.
+    var selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+    var hasSelection = selection && !selection.isCollapsed && String(selection).length > 0;
+    if (resultsVisible && !hasSelection &&
+        activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && activeTag !== 'SELECT') {
         event.preventDefault();
         handleCopyResults();
         return;
@@ -1435,7 +1439,6 @@ export const __testHooks = {
     debouncedAutoCalc();
   },
   resetCalculateState: function () {
-    autoCalcInProgress = false;
     nextSubmitIsAuto = false;
     activeCalculateRequestId = 0;
     if (debouncedAutoCalc.cancel) debouncedAutoCalc.cancel();

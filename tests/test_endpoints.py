@@ -727,6 +727,20 @@ class TestExportPdfIgnoresClientResults:
         assert response.status_code == 200
         assert response.data[:5] == b"%PDF-"
 
+    def test_patient_info_non_dict_list_rejected(self, client):
+        # A falsy-but-malformed patient_info ([]) must still be rejected, not
+        # silently coerced to {} by `or {}`.
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "weight": 14.5,
+            "patient_info": [],
+        }
+        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
     def test_non_png_data_url_rejected(self, client):
         payload = {
             "sex": "male",
