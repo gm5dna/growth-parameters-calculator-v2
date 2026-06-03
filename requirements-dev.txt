@@ -30,7 +30,7 @@ defusedxml==0.7.1
     # via py-serializable
 filelock==3.29.0
     # via cachecontrol
-idna==3.13
+idna==3.15
     # via requests
 iniconfig==2.3.0
     # via pytest
@@ -102,7 +102,7 @@ typing-extensions==4.15.0
     # via
     #   -c requirements.txt
     #   cyclonedx-python-lib
-urllib3==2.6.3
+urllib3==2.7.0
     # via requests
 wheel==0.47.0
     # via pip-tools
