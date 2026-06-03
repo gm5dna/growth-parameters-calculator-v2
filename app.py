@@ -555,12 +555,14 @@ def export_pdf():
     # Validate the export-only fields (shape + count) BEFORE the expensive
     # rcpchgrowth recalculation, so a malformed or oversized chart payload is
     # rejected cheaply rather than after a full calculation pass.
-    # Note: `or {}` would let a falsy-but-malformed value (e.g. []) slip past
-    # the type check, so default only when the key is absent.
+    # patient_info is optional and display-only. An absent key or explicit null
+    # means "not provided" (consistent with how every other optional field is
+    # treated); any other non-dict value is malformed and rejected. Plain
+    # `or {}` was wrong here — it let a falsy [] slip past the type check.
     client_patient = data.get("patient_info")
     if client_patient is None:
         client_patient = {}
-    if not isinstance(client_patient, dict):
+    elif not isinstance(client_patient, dict):
         return jsonify(format_error_response(
             "patient_info must be an object.", ErrorCodes.INVALID_INPUT
         )), 400
