@@ -171,6 +171,23 @@ class TestNestedPayloadValidation:
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
+    def test_bone_age_echo_strips_unknown_keys(self, client):
+        """The echoed bone_age_assessments must not reflect arbitrary client keys."""
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [
+                {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp", "notes": "SECRET"},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        echoed = response.get_json()["results"]["bone_age_assessments"]
+        assert echoed[0] == {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"}
+        assert "notes" not in echoed[0]
+
     def test_too_many_previous_measurements_returns_400(self, client):
         payload = {
             "sex": "male",

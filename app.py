@@ -437,7 +437,16 @@ def perform_calculation(data):
             results["bone_age_height"] = bone_age_result
         else:
             all_warnings.append("Bone age assessment could not be processed.")
-        results["bone_age_assessments"] = bone_age_assessments
+        # Echo only the recognised fields back — never reflect arbitrary
+        # client-supplied keys (which could carry PHI) into the response.
+        results["bone_age_assessments"] = [
+            {
+                "date": ba.get("date"),
+                "bone_age": ba.get("bone_age"),
+                "standard": ba.get("standard"),
+            }
+            for ba in bone_age_assessments
+        ]
 
     results["validation_messages"] = all_warnings
     results["_patient"] = {
@@ -546,7 +555,11 @@ def export_pdf():
     # Validate the export-only fields (shape + count) BEFORE the expensive
     # rcpchgrowth recalculation, so a malformed or oversized chart payload is
     # rejected cheaply rather than after a full calculation pass.
-    client_patient = data.get("patient_info") or {}
+    # Note: `or {}` would let a falsy-but-malformed value (e.g. []) slip past
+    # the type check, so default only when the key is absent.
+    client_patient = data.get("patient_info")
+    if client_patient is None:
+        client_patient = {}
     if not isinstance(client_patient, dict):
         return jsonify(format_error_response(
             "patient_info must be an object.", ErrorCodes.INVALID_INPUT
