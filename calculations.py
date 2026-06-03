@@ -40,6 +40,16 @@ def calculate_calendar_age(birth_date, measurement_date):
     }
 
 
+def expected_delivery_date(birth_date, gestation_weeks, gestation_days):
+    """Return the would-be term (40-week) birth date for a preterm infant.
+
+    A baby born at gestation_weeks+gestation_days reaches term this many
+    weeks/days after its actual birth date; corrected age is measured from
+    this EDD.
+    """
+    return birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+
+
 def should_apply_gestation_correction(gestation_weeks, age_years):
     """Determine whether gestation correction should be applied.
 

@@ -15,6 +15,7 @@ import {
   validateAtLeastOneMeasurement,
 } from './validation.mjs';
 import { copyResultsToClipboard } from './clipboard.mjs';
+import { formatCentile, formatSds } from './format.mjs';
 import {
   captureChartImages,
   destroyChart,
@@ -149,7 +150,6 @@ async function handleExportPdf() {
 
 const STORAGE_KEY = 'growthCalculatorFormState';
 
-var autoCalcInProgress = false;
 var nextSubmitIsAuto = false;
 var activeCalculateRequestId = 0;
 var currentGhDose = 0;
@@ -660,7 +660,6 @@ async function handleSubmit(event) {
   nextSubmitIsAuto = false;
   if (!isAutoSubmit && debouncedAutoCalc.cancel) {
     debouncedAutoCalc.cancel();
-    autoCalcInProgress = false;
   }
   var requestId = ++activeCalculateRequestId;
 
@@ -700,7 +699,6 @@ async function handleSubmit(event) {
   } finally {
     if (requestId === activeCalculateRequestId) {
       setLoadingState(false);
-      autoCalcInProgress = false;
     }
   }
 }
@@ -751,17 +749,6 @@ function clearError() {
 /* ------------------------------------------------------------------ */
 /*  Format helpers                                                    */
 /* ------------------------------------------------------------------ */
-
-function formatCentile(centile) {
-  if (centile === null || centile === undefined) return 'N/A';
-  return centile.toFixed(1) + '%';
-}
-
-function formatSds(sds) {
-  if (sds === null || sds === undefined) return 'N/A';
-  const sign = sds >= 0 ? '+' : '';
-  return sign + sds.toFixed(2);
-}
 
 function formatCalendarAge(ageCal) {
   if (!ageCal) return '';
@@ -1181,7 +1168,6 @@ function autoCalculate() {
   if (!sex || !dob || !measDate) return;
   if (!weight && !height && !ofc) return;
 
-  autoCalcInProgress = true;
   nextSubmitIsAuto = true;
   if (form) form.requestSubmit();
 }
@@ -1445,7 +1431,6 @@ export const __testHooks = {
     debouncedAutoCalc();
   },
   resetCalculateState: function () {
-    autoCalcInProgress = false;
     nextSubmitIsAuto = false;
     activeCalculateRequestId = 0;
     if (debouncedAutoCalc.cancel) debouncedAutoCalc.cancel();
