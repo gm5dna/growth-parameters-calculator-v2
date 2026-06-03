@@ -111,9 +111,12 @@ class TestCalculateCbnfBsa:
     def test_below_minimum_clamps(self):
         assert calculate_cbnf_bsa(0.5) == 0.10
 
-    def test_above_maximum_extrapolates(self):
-        bsa = calculate_cbnf_bsa(100.0)
-        assert bsa > 2.2
+    def test_above_maximum_clamps_to_top_value(self):
+        # Above the cBNF table (90 kg -> 2.2 m2) we clamp rather than
+        # extrapolate: extrapolation produced impossible areas (~5.35 m2 at
+        # the 300 kg cap) that then drove the GH dose calculation.
+        assert calculate_cbnf_bsa(100.0) == 2.2
+        assert calculate_cbnf_bsa(300.0) == 2.2
 
     def test_returns_two_decimal_places(self):
         bsa = calculate_cbnf_bsa(15.0)
