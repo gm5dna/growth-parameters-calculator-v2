@@ -1,26 +1,24 @@
-"""Utility functions — MPH, norm_cdf, response formatting.
+"""Utility functions — MPH, chart data, response formatting.
 
 Chart data helper added in Phase 2.
 """
-import math
-
-from rcpchgrowth import create_chart, mid_parental_height, mid_parental_height_z
+from rcpchgrowth import create_chart, mid_parental_height
 
 from validation import validate_parent_height
 
 
-def norm_cdf(z):
-    """Convert a Z-score to a centile (0-100) using the normal CDF."""
-    return (1.0 + math.erf(z / math.sqrt(2.0))) / 2.0 * 100.0
-
-
 def calculate_mid_parental_height(maternal_height, paternal_height, sex):
-    """Calculate mid-parental height with SDS, centile, and target range.
+    """Calculate mid-parental height (cm) and target range.
 
     Returns dict or None if either parent height is missing.
-    Uses rcpchgrowth for MPH value (Tanner formula: (m+p+/-13)/2, algebraically
-    equivalent to PRD formula (m+p)/2 +/- 6.5) and regression-based SDS.
+    Uses rcpchgrowth for the MPH value (Tanner formula: (m+p+/-13)/2,
+    algebraically equivalent to PRD formula (m+p)/2 +/- 6.5).
     Target range: MPH +/- 8.5cm per PRD-02 section 6.2.
+
+    No centile/SDS is returned: rcpchgrowth's mid_parental_height_z is a
+    sex-neutral parental-mean SDS, which sits awkwardly next to the
+    sex-specific MPH value and risks being misread as the child's target
+    centile. Display the height and target range only.
     """
     if maternal_height in (None, "") or paternal_height in (None, ""):
         return None
@@ -35,16 +33,9 @@ def calculate_mid_parental_height(maternal_height, paternal_height, sex):
         paternal_height=paternal_height,
         sex=sex,
     )
-    mph_sds = mid_parental_height_z(
-        maternal_height=maternal_height,
-        paternal_height=paternal_height,
-        reference="uk-who",
-    )
 
     return {
         "mid_parental_height": round(mph, 1),
-        "mid_parental_height_sds": round(mph_sds, 2),
-        "mid_parental_height_centile": round(norm_cdf(mph_sds), 1),
         "target_range_lower": round(mph - 8.5, 1),
         "target_range_upper": round(mph + 8.5, 1),
     }

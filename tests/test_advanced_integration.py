@@ -86,3 +86,118 @@ class TestAdvancedFeatures:
         assert data["success"] is True
         assert len(data["results"]["previous_measurements"]) == 1
         assert data["results"]["height_velocity"]["value"] is not None
+
+
+class TestHeightVelocitySelection:
+    def test_uses_older_valid_height_when_newest_is_too_recent(self, client):
+        """A too-recent previous height must not mask an older valid one.
+
+        Newest previous height is ~1 month before the current measurement
+        (below the 4-month minimum); an older one is ~13 months before.
+        Velocity must be computed from the older, valid measurement.
+        """
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "previous_measurements": [
+                {"date": "2023-05-15", "height": 124.0},  # ~1 month — too recent
+                {"date": "2022-05-15", "height": 117.0},  # ~13 months — valid
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert data["success"] is True
+        hv = data["results"]["height_velocity"]
+        assert hv["value"] is not None
+        assert hv["based_on_date"] == "2022-05-15"
+
+    def test_message_when_no_previous_height_is_old_enough(self, client):
+        """When every previous height is too recent, surface the interval message."""
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "previous_measurements": [
+                {"date": "2023-05-15", "height": 124.0},  # ~1 month only
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        data = response.get_json()
+        assert data["success"] is True
+        hv = data["results"]["height_velocity"]
+        assert hv["value"] is None
+        assert "4 months" in hv["message"]
+
+
+class TestNestedPayloadValidation:
+    def test_previous_measurements_not_a_list_returns_400(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": "not-a-list",
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        body = response.get_json()
+        assert body["success"] is False
+        assert body["error_code"] == "ERR_010"
+
+    def test_bone_age_assessments_not_a_list_returns_400(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": "not-a-list",
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_previous_measurements_non_object_entry_returns_400(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": ["just-a-string"],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"
+
+    def test_bone_age_echo_strips_unknown_keys(self, client):
+        """The echoed bone_age_assessments must not reflect arbitrary client keys."""
+        payload = {
+            "sex": "male",
+            "birth_date": "2015-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 125.0,
+            "bone_age_assessments": [
+                {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp", "notes": "SECRET"},
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        echoed = response.get_json()["results"]["bone_age_assessments"]
+        assert echoed[0] == {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"}
+        assert "notes" not in echoed[0]
+
+    def test_too_many_previous_measurements_returns_400(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-06-15",
+            "measurement_date": "2023-06-15",
+            "height": 96.0,
+            "previous_measurements": [
+                {"date": "2022-01-01", "height": 90.0} for _ in range(51)
+            ],
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 400
+        assert response.get_json()["error_code"] == "ERR_010"

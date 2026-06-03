@@ -975,19 +975,6 @@ input::placeholder {
   color: #fff;
 }
 
-.age-range-selector input[type="radio"] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* Chart container */
 .chart-container {
   position: relative;
@@ -1020,7 +1007,13 @@ input::placeholder {
   margin-bottom: 12px;
 }
 
-.visually-hidden-control {
+/* Visually-hidden / screen-reader-only utility — one shared clip pattern.
+   (.data-table thead uses the same pattern but only inside the mobile media
+   query, so it is kept separate below.) */
+.age-range-selector input[type="radio"],
+.visually-hidden-control,
+.sr-only,
+#modeToggle {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1029,19 +1022,6 @@ input::placeholder {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* Screen reader only */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
 }
@@ -1077,18 +1057,7 @@ input::placeholder {
   transition: transform 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
-#modeToggle {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
-}
+/* #modeToggle is visually hidden via the shared utility rule above. */
 #modeToggle:checked + .toggle-slider { background: var(--accent-primary); }
 #modeToggle:checked + .toggle-slider::after { transform: translateX(20px); }
 

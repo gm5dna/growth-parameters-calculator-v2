@@ -4,29 +4,7 @@ from utils import (
     format_error_response,
     format_success_response,
     get_chart_data,
-    norm_cdf,
 )
-
-
-class TestNormCdf:
-    def test_zero_gives_fifty_percent(self):
-        assert abs(norm_cdf(0) - 50.0) < 0.01
-
-    def test_positive_sds(self):
-        result = norm_cdf(1.0)
-        assert abs(result - 84.13) < 0.5
-
-    def test_negative_sds(self):
-        result = norm_cdf(-1.0)
-        assert abs(result - 15.87) < 0.5
-
-    def test_extreme_positive(self):
-        result = norm_cdf(4.0)
-        assert result > 99.99
-
-    def test_extreme_negative(self):
-        result = norm_cdf(-4.0)
-        assert result < 0.01
 
 
 class TestCalculateMidParentalHeight:
@@ -37,8 +15,6 @@ class TestCalculateMidParentalHeight:
         assert result["mid_parental_height"] == 178.0
         assert result["target_range_lower"] == 178.0 - 8.5
         assert result["target_range_upper"] == 178.0 + 8.5
-        assert "mid_parental_height_sds" in result
-        assert "mid_parental_height_centile" in result
 
     def test_female_mph(self):
         result = calculate_mid_parental_height(165.0, 178.0, "female")
@@ -53,11 +29,12 @@ class TestCalculateMidParentalHeight:
     def test_returns_none_when_missing_paternal(self):
         assert calculate_mid_parental_height(165.0, None, "male") is None
 
-    def test_sds_and_centile_are_floats(self):
+    def test_no_centile_or_sds_returned(self):
+        # The sex-neutral parental-mean centile/SDS were removed to avoid being
+        # misread as the child's target centile; only the height + range remain.
         result = calculate_mid_parental_height(165.0, 178.0, "male")
-        assert isinstance(result["mid_parental_height_sds"], float)
-        assert isinstance(result["mid_parental_height_centile"], float)
-        assert 0 < result["mid_parental_height_centile"] < 100
+        assert "mid_parental_height_sds" not in result
+        assert "mid_parental_height_centile" not in result
 
 
 class TestFormatErrorResponse:

@@ -4,22 +4,32 @@ import os
 from datetime import datetime as dt
 from datetime import timedelta
 
-from dateutil.relativedelta import relativedelta
 from flask import Flask, jsonify, render_template, request, send_file
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from calculations import (
+    MeasurementDateError,
     calculate_age_in_years,
     calculate_boyd_bsa,
     calculate_calendar_age,
     calculate_cbnf_bsa,
     calculate_gh_dose,
     calculate_height_velocity,
+    expected_delivery_date,
     should_apply_gestation_correction,
 )
-from constants import BONE_AGE_WINDOW_DAYS, MAX_AGE_YEARS, VALID_MEASUREMENT_METHODS, ErrorCodes
+from constants import (
+    BONE_AGE_WINDOW_DAYS,
+    MAX_AGE_YEARS,
+    MAX_BONE_AGE_ASSESSMENTS,
+    MAX_PREVIOUS_MEASUREMENTS,
+    VALID_MEASUREMENT_METHODS,
+    VELOCITY_MIN_INTERVAL_DAYS,
+    ErrorCodes,
+)
 from models import (
+    SdsOutOfRangeError,
     UnsupportedCalculationError,
     create_measurement,
     extract_measurement_result,
@@ -40,6 +50,7 @@ from validation import (
     validate_date,
     validate_gestation,
     validate_height,
+    validate_object_list,
     validate_ofc,
     validate_reference,
     validate_reference_supports,
@@ -79,6 +90,11 @@ _ALLOWED_CLIENT_PATIENT_INFO_KEYS = frozenset()
 # through PIL + ReportLab synchronously; without a count cap an attacker can
 # submit many small invalid images inside a single <10 MB request body.
 _MAX_CHART_IMAGES = int(os.environ.get("MAX_CHART_IMAGES", 10))
+
+# Only these chart keys are embedded in the PDF. Any other client-supplied key
+# is discarded (without logging the raw key, which could carry accidental PHI)
+# rather than turned into a chart label.
+_ALLOWED_CHART_KEYS = frozenset({"height", "weight", "bmi", "ofc"})
 
 
 @app.errorhandler(413)
@@ -181,7 +197,7 @@ def perform_calculation(data):
     # since rcpchgrowth performs its internal centile lookup against the
     # corrected age in that case.
     if correction_applied:
-        edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+        edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
         effective_age_years = calculate_age_in_years(edd, measurement_date)
     else:
         effective_age_years = age_years
@@ -217,7 +233,7 @@ def perform_calculation(data):
             results["corrected_age_years"] = round(dates["corrected_decimal_age"], 4)
             # rcpchgrowth returns corrected_calendar_age as a string;
             # compute a dict to match our API contract (PRD-02 section 8.1)
-            edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+            edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
             results["corrected_age_calendar"] = calculate_calendar_age(edd, measurement_date)
 
     # Auto-calculate BMI when both weight and height are present.
@@ -279,8 +295,13 @@ def perform_calculation(data):
         "weight": validate_weight,
         "ofc": validate_ofc,
     }
+    previous_measurements = validate_object_list(
+        data.get("previous_measurements"),
+        "previous_measurements",
+        MAX_PREVIOUS_MEASUREMENTS,
+    )
     processed_prev = []
-    for entry in data.get("previous_measurements", []):
+    for entry in previous_measurements:
         prev_date_str = entry.get("date", "")
         prev_date = validate_date(prev_date_str, "previous measurement date")
         if prev_date >= measurement_date:
@@ -296,7 +317,7 @@ def perform_calculation(data):
         prev_age = calculate_age_in_years(birth_date, prev_date)
         prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
         if gestation_weeks > 0 and should_apply_gestation_correction(gestation_weeks, prev_age):
-            edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+            edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
             corrected_prev_age = calculate_age_in_years(edd, prev_date)
             if corrected_prev_age >= 0:
                 prev_result["corrected_age"] = round(corrected_prev_age, 4)
@@ -330,17 +351,30 @@ def perform_calculation(data):
     if height is not None and processed_prev:
         prev_with_height = [p for p in processed_prev if "height" in p]
         if prev_with_height:
+            # PRD-04 §4.6: use the most recent previous height that is at least
+            # the minimum interval away — a too-recent measurement must not mask
+            # an older valid one. Sort newest-first, then prefer the newest
+            # entry that clears VELOCITY_MIN_INTERVAL_DAYS.
             prev_with_height.sort(key=lambda p: p["date"], reverse=True)
-            most_recent = prev_with_height[0]
-            prev_date_obj = dt.strptime(most_recent["date"], "%Y-%m-%d").date()
-            interval = (measurement_date - prev_date_obj).days
+            dated = [
+                (p, (measurement_date - dt.strptime(p["date"], "%Y-%m-%d").date()).days)
+                for p in prev_with_height
+            ]
+            eligible = [(p, d) for p, d in dated if d >= VELOCITY_MIN_INTERVAL_DAYS]
+            # Fall back to the closest measurement only when none qualify, so
+            # calculate_height_velocity can surface the real (too-short) interval.
+            chosen, interval = eligible[0] if eligible else dated[0]
             velocity = calculate_height_velocity(
-                height, most_recent["height"]["value"], interval
+                height, chosen["height"]["value"], interval
             )
-            velocity["based_on_date"] = most_recent["date"]
+            velocity["based_on_date"] = chosen["date"]
             results["height_velocity"] = velocity
 
-    bone_age_assessments = data.get("bone_age_assessments", [])
+    bone_age_assessments = validate_object_list(
+        data.get("bone_age_assessments"),
+        "bone_age_assessments",
+        MAX_BONE_AGE_ASSESSMENTS,
+    )
     bone_age_result = None
 
     if bone_age_assessments and height is not None:
@@ -388,6 +422,11 @@ def perform_calculation(data):
             except (ValidationError, UnsupportedCalculationError):
                 raise
             except Exception:
+                # Skip this single assessment but record WHY — masking an
+                # rcpchgrowth contract change or arithmetic error behind the
+                # generic "could not be processed" warning makes clinical
+                # failures undiagnosable.
+                logger.exception("Bone age assessment processing failed; skipping entry")
                 continue
 
         # Only publish bone_age_height when the loop actually produced a
@@ -398,7 +437,16 @@ def perform_calculation(data):
             results["bone_age_height"] = bone_age_result
         else:
             all_warnings.append("Bone age assessment could not be processed.")
-        results["bone_age_assessments"] = bone_age_assessments
+        # Echo only the recognised fields back — never reflect arbitrary
+        # client-supplied keys (which could carry PHI) into the response.
+        results["bone_age_assessments"] = [
+            {
+                "date": ba.get("date"),
+                "bone_age": ba.get("bone_age"),
+                "standard": ba.get("standard"),
+            }
+            for ba in bone_age_assessments
+        ]
 
     results["validation_messages"] = all_warnings
     results["_patient"] = {
@@ -417,13 +465,18 @@ def _handle_calculation_exception(e):
         return format_error_response(e.message, e.code), status
     if isinstance(e, UnsupportedCalculationError):
         return format_error_response(e.message, e.code), 422
+    if isinstance(e, (SdsOutOfRangeError, MeasurementDateError)):
+        # Typed, clinician-facing ValueErrors carry their own error code and a
+        # safe message — surface them directly.
+        return format_error_response(str(e), e.code), 400
     if isinstance(e, ValueError):
-        msg = str(e)
-        if "birth" in msg.lower() or "date" in msg.lower():
-            code = ErrorCodes.INVALID_DATE_RANGE
-        else:
-            code = ErrorCodes.SDS_OUT_OF_RANGE
-        return format_error_response(msg, code), 400
+        # An unexpected ValueError (e.g. from a library internal) — do not leak
+        # its raw message to the client; log it and return a generic error.
+        logger.exception("Unexpected ValueError in calculation")
+        return format_error_response(
+            "Calculation failed. Please check your inputs and try again.",
+            ErrorCodes.CALCULATION_ERROR,
+        ), 400
     logger.exception("Unhandled calculation error")
     return (
         format_error_response(
@@ -499,6 +552,35 @@ def export_pdf():
     except ValidationError as e:
         return jsonify(format_error_response(e.message, e.code)), 400
 
+    # Validate the export-only fields (shape + count) BEFORE the expensive
+    # rcpchgrowth recalculation, so a malformed or oversized chart payload is
+    # rejected cheaply rather than after a full calculation pass.
+    # patient_info is optional and display-only. An absent key or explicit null
+    # means "not provided" (consistent with how every other optional field is
+    # treated); any other non-dict value is malformed and rejected. Plain
+    # `or {}` was wrong here — it let a falsy [] slip past the type check.
+    client_patient = data.get("patient_info")
+    if client_patient is None:
+        client_patient = {}
+    elif not isinstance(client_patient, dict):
+        return jsonify(format_error_response(
+            "patient_info must be an object.", ErrorCodes.INVALID_INPUT
+        )), 400
+
+    chart_images = data.get("chart_images", {})
+    if not isinstance(chart_images, dict):
+        return jsonify(format_error_response(
+            "chart_images must be an object.", ErrorCodes.INVALID_INPUT
+        )), 400
+    # Count-cap the raw payload first (bounds work regardless of key names),
+    # then discard any key that is not a known chart type.
+    if len(chart_images) > _MAX_CHART_IMAGES:
+        return jsonify(format_error_response(
+            f"At most {_MAX_CHART_IMAGES} chart images are allowed per export.",
+            ErrorCodes.INVALID_INPUT,
+        )), 400
+    chart_images = {k: v for k, v in chart_images.items() if k in _ALLOWED_CHART_KEYS}
+
     # Always recalculate server-side — the PDF must not be driven by
     # anything the client could tamper with. Any `results` key in the
     # payload is ignored.
@@ -516,25 +598,9 @@ def export_pdf():
     # Merge only allow-listed display fields from the client — never the four
     # safety-critical keys (sex, birth_date, measurement_date, reference),
     # which are always the server-recomputed values.
-    client_patient = data.get("patient_info") or {}
-    if not isinstance(client_patient, dict):
-        return jsonify(format_error_response(
-            "patient_info must be an object.", ErrorCodes.INVALID_INPUT
-        )), 400
     for key in _ALLOWED_CLIENT_PATIENT_INFO_KEYS:
         if key in client_patient:
             patient[key] = client_patient[key]
-
-    chart_images = data.get("chart_images", {})
-    if not isinstance(chart_images, dict):
-        return jsonify(format_error_response(
-            "chart_images must be an object.", ErrorCodes.INVALID_INPUT
-        )), 400
-    if len(chart_images) > _MAX_CHART_IMAGES:
-        return jsonify(format_error_response(
-            f"At most {_MAX_CHART_IMAGES} chart images are allowed per export.",
-            ErrorCodes.INVALID_INPUT,
-        )), 400
 
     try:
         pdf = GrowthReportPDF(results, patient, chart_images)
