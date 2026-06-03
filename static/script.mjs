@@ -661,7 +661,6 @@ async function handleSubmit(event) {
   if (!isAutoSubmit && debouncedAutoCalc.cancel) {
     debouncedAutoCalc.cancel();
   }
-  var requestId = ++activeCalculateRequestId;
 
   clearError();
   clearFieldErrors();
@@ -672,6 +671,12 @@ async function handleSubmit(event) {
   if (!runClientValidation(payload)) {
     return;
   }
+
+  // Bump the request id only AFTER validation passes. Otherwise a superseding
+  // submit that fails validation would advance activeCalculateRequestId and
+  // strand an in-flight valid request — its finally{} would no longer match,
+  // leaving the button stuck on the spinner.
+  var requestId = ++activeCalculateRequestId;
 
   setLoadingState(true);
 
@@ -998,8 +1003,11 @@ function displayResults(results, options, payload) {
     if (ghCalc) {
       ghCalc.hidden = false;
       if (results.bsa) currentBsa = results.bsa.value;
-      // Read weight directly from the form (appState.lastPayload may not be set yet)
-      var weightVal = document.getElementById('weight')?.value;
+      // Use the weight from the SUBMITTED payload (not a fresh DOM read) so a
+      // mid-flight form edit can't desync the GH mcg/kg/day figure from the
+      // results. Fall back to the DOM only when no payload was supplied
+      // (e.g. the test-only render helper).
+      var weightVal = payload ? payload.weight : document.getElementById('weight')?.value;
       if (weightVal) currentWeightKg = parseFloat(weightVal);
       var pen = getSelectedPen();
       currentGhDose = roundToStep(results.gh_dose.initial_daily_dose, pen.step);
