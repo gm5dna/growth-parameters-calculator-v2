@@ -4,7 +4,6 @@ import os
 from datetime import datetime as dt
 from datetime import timedelta
 
-from dateutil.relativedelta import relativedelta
 from flask import Flask, jsonify, render_template, request, send_file
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -17,6 +16,7 @@ from calculations import (
     calculate_cbnf_bsa,
     calculate_gh_dose,
     calculate_height_velocity,
+    expected_delivery_date,
     should_apply_gestation_correction,
 )
 from constants import (
@@ -197,7 +197,7 @@ def perform_calculation(data):
     # since rcpchgrowth performs its internal centile lookup against the
     # corrected age in that case.
     if correction_applied:
-        edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+        edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
         effective_age_years = calculate_age_in_years(edd, measurement_date)
     else:
         effective_age_years = age_years
@@ -233,7 +233,7 @@ def perform_calculation(data):
             results["corrected_age_years"] = round(dates["corrected_decimal_age"], 4)
             # rcpchgrowth returns corrected_calendar_age as a string;
             # compute a dict to match our API contract (PRD-02 section 8.1)
-            edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+            edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
             results["corrected_age_calendar"] = calculate_calendar_age(edd, measurement_date)
 
     # Auto-calculate BMI when both weight and height are present.
@@ -317,7 +317,7 @@ def perform_calculation(data):
         prev_age = calculate_age_in_years(birth_date, prev_date)
         prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
         if gestation_weeks > 0 and should_apply_gestation_correction(gestation_weeks, prev_age):
-            edd = birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
+            edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
             corrected_prev_age = calculate_age_in_years(edd, prev_date)
             if corrected_prev_age >= 0:
                 prev_result["corrected_age"] = round(corrected_prev_age, 4)

@@ -9,6 +9,7 @@
  * plotting, MPH display, tooltips).
  */
 
+import { formatCentile, formatSds } from './format.mjs';
 import { appState } from './state.mjs';
 
 /* ------------------------------------------------------------------ */
@@ -72,7 +73,7 @@ function hexToRgb(hex) {
  */
 function getChartColors() {
     var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
+    var sex = (appState.lastPayload) ? appState.lastPayload.sex : 'male';
     var isFemale = sex === 'female';
 
     return {
@@ -247,8 +248,8 @@ function renderAgeRangeSelector(chartType) {
   container.innerHTML = '';
 
   var ranges = AGE_RANGES[chartType] || [];
-  var ageYears = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
-  var hasParentalHeights = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
+  var ageYears = (appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
+  var hasParentalHeights = (appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
   var defaultIndex = getDefaultAgeRange(chartType, ageYears, hasParentalHeights);
   currentAgeRangeIndex = defaultIndex;
 
@@ -282,8 +283,8 @@ function renderAgeRangeSelector(chartType) {
  */
 export async function loadAndRenderChart() {
   var requestId = ++activeChartRequestId;
-  var reference = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
-  var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
+  var reference = (appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
+  var sex = (appState.lastPayload) ? appState.lastPayload.sex : 'male';
   var ranges = AGE_RANGES[currentChartType] || [];
   var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
   var chartTypeForRequest = currentChartType;
@@ -493,7 +494,7 @@ function ensureChartPluginsRegistered() {
  * @returns {Object|null}    - { x: ageYears, y: measurementValue } or null.
  */
 function getMeasurementPoint(chartType) {
-  if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return null;
+  if (!appState.lastResults) return null;
   var measurement = appState.lastResults[chartType];
   if (!measurement || measurement.value === undefined) return null;
   // Guard age_years too: without it the point's x is undefined, which later
@@ -506,7 +507,7 @@ function getMeasurementPoint(chartType) {
 }
 
 function getCorrectedMeasurementPoint(chartType) {
-  if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return null;
+  if (!appState.lastResults) return null;
   if (!appState.lastResults.gestation_correction_applied) return null;
   if (appState.lastResults.corrected_age_years === undefined) return null;
   var measurement = appState.lastResults[chartType];
@@ -530,11 +531,14 @@ function getCorrectedMeasurementPoint(chartType) {
  */
 function getMphAnnotations(chartType, ageRange) {
   if (chartType !== 'height') return {};
-  if (typeof appState.lastResults === 'undefined' || !appState.lastResults) return {};
+  if (!appState.lastResults) return {};
   var mph = appState.lastResults.mid_parental_height;
   if (!mph) return {};
   if (ageRange.max < 18) return {};
   var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  // Theme-aware MPH purple — a lighter shade reads better on the dark canvas.
+  var mphRgb = isDark ? '170, 150, 210' : '100, 80, 140';
+  var mphLabelColor = isDark ? '#c9bce6' : '#6b5090';
 
   // MPH represents predicted adult height — draw it at the right end of
   // the chart where the centile curves reach adult values. The line extends
@@ -550,7 +554,7 @@ function getMphAnnotations(chartType, ageRange) {
       yMax: mph.mid_parental_height,
       xMin: mphXStart,
       xMax: mphXEnd,
-      borderColor: 'rgba(100, 80, 140, 0.8)',
+      borderColor: 'rgba(' + mphRgb + ', 0.8)',
       borderWidth: 2,
       borderDash: [6, 4],
       label: {
@@ -559,7 +563,7 @@ function getMphAnnotations(chartType, ageRange) {
         position: 'start',
         font: { size: 10, weight: 'bold' },
         backgroundColor: isDark ? 'rgba(28, 39, 51, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-        color: '#6b5090',
+        color: mphLabelColor,
         padding: { top: 2, bottom: 2, left: 4, right: 4 },
         yAdjust: -14,
       },
@@ -570,7 +574,7 @@ function getMphAnnotations(chartType, ageRange) {
       xMax: mphXEnd,
       yMin: mph.target_range_lower,
       yMax: mph.target_range_upper,
-      backgroundColor: 'rgba(100, 80, 140, 0.06)',
+      backgroundColor: 'rgba(' + mphRgb + ', 0.06)',
       borderWidth: 0,
     },
     mphUpper: {
@@ -579,7 +583,7 @@ function getMphAnnotations(chartType, ageRange) {
       yMax: mph.target_range_upper,
       xMin: mphXStart,
       xMax: mphXEnd,
-      borderColor: 'rgba(100, 80, 140, 0.25)',
+      borderColor: 'rgba(' + mphRgb + ', 0.25)',
       borderWidth: 1,
       borderDash: [3, 3],
     },
@@ -589,7 +593,7 @@ function getMphAnnotations(chartType, ageRange) {
       yMax: mph.target_range_lower,
       xMin: mphXStart,
       xMax: mphXEnd,
-      borderColor: 'rgba(100, 80, 140, 0.25)',
+      borderColor: 'rgba(' + mphRgb + ', 0.25)',
       borderWidth: 1,
       borderDash: [3, 3],
     },
@@ -608,7 +612,7 @@ function getMphAnnotations(chartType, ageRange) {
  * @returns {Array}          - Array of {x: ageYears, y: value} points.
  */
 function getPreviousMeasurementPoints(chartType) {
-  if (typeof appState.lastResults === 'undefined' || !appState.lastResults || !appState.lastResults.previous_measurements) return [];
+  if (!appState.lastResults || !appState.lastResults.previous_measurements) return [];
   return appState.lastResults.previous_measurements
     .filter(function(pm) { return pm[chartType] && pm[chartType].value !== undefined; })
     .map(function(pm) {
@@ -627,7 +631,7 @@ function getPreviousMeasurementPoints(chartType) {
  * @returns {Object|null} - { x: boneAgeYears, y: heightCm } or null.
  */
 function getBoneAgePoint() {
-  if (typeof appState.lastResults === 'undefined' || !appState.lastResults || !appState.lastResults.bone_age_height) return null;
+  if (!appState.lastResults || !appState.lastResults.bone_age_height) return null;
   var ba = appState.lastResults.bone_age_height;
   if (!ba.within_window || !ba.height) return null;
   return { x: ba.bone_age, y: ba.height };
@@ -869,10 +873,10 @@ function renderChart(centiles, ageRange, chartType) {
                   name + ': ' + point.y + ' ' + unit,
                 ];
                 if (measurement && measurement.centile !== null) {
-                  lines.push('Centile (corrected): ' + measurement.centile.toFixed(1) + '%');
+                  lines.push('Centile (corrected): ' + formatCentile(measurement.centile));
                 }
                 if (measurement && measurement.sds !== null) {
-                  lines.push('SDS (corrected): ' + (measurement.sds >= 0 ? '+' : '') + measurement.sds.toFixed(2));
+                  lines.push('SDS (corrected): ' + formatSds(measurement.sds));
                 }
                 return lines;
               }
@@ -883,8 +887,8 @@ function renderChart(centiles, ageRange, chartType) {
                 return [
                   'Bone Age: ' + point.x.toFixed(1) + ' years',
                   'Height: ' + point.y + ' cm',
-                  'Centile: ' + (ba && ba.centile !== null ? ba.centile.toFixed(1) + '%' : 'N/A'),
-                  'SDS: ' + (ba && ba.sds !== null ? (ba.sds >= 0 ? '+' : '') + ba.sds.toFixed(2) : 'N/A'),
+                  'Centile: ' + (ba ? formatCentile(ba.centile) : 'N/A'),
+                  'SDS: ' + (ba ? formatSds(ba.sds) : 'N/A'),
                 ];
               }
 
@@ -903,8 +907,8 @@ function renderChart(centiles, ageRange, chartType) {
               return [
                 'Age: ' + point.x.toFixed(2) + ' years',
                 currentName + ': ' + point.y + ' ' + currentUnit,
-                'Centile: ' + (currentMeasurement && currentMeasurement.centile !== null ? currentMeasurement.centile.toFixed(1) + '%' : 'N/A'),
-                'SDS: ' + (currentMeasurement && currentMeasurement.sds !== null ? (currentMeasurement.sds >= 0 ? '+' : '') + currentMeasurement.sds.toFixed(2) : 'N/A'),
+                'Centile: ' + (currentMeasurement ? formatCentile(currentMeasurement.centile) : 'N/A'),
+                'SDS: ' + (currentMeasurement ? formatSds(currentMeasurement.sds) : 'N/A'),
               ];
             },
           },
@@ -952,7 +956,7 @@ export function downloadChart() {
 
     var ranges = AGE_RANGES[currentChartType] || [];
     var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
-    var cacheKey = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload ? appState.lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (typeof appState.lastPayload !== 'undefined' && appState.lastPayload ? appState.lastPayload.sex : 'male');
+    var cacheKey = (appState.lastPayload ? appState.lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (appState.lastPayload ? appState.lastPayload.sex : 'male');
     var centiles = chartDataCache[cacheKey];
     if (centiles) renderChart(centiles, ageRange, currentChartType);
 
@@ -991,8 +995,8 @@ export function downloadChart() {
 export async function captureChartImages() {
     ensureChartPluginsRegistered();
     var images = {};
-    var reference = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
-    var sex = (typeof appState.lastPayload !== 'undefined' && appState.lastPayload) ? appState.lastPayload.sex : 'male';
+    var reference = (appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
+    var sex = (appState.lastPayload) ? appState.lastPayload.sex : 'male';
     var savedType = currentChartType;
 
     // Temporarily show charts section so the canvas has dimensions
@@ -1010,8 +1014,8 @@ export async function captureChartImages() {
         try {
             var centiles = await fetchChartData(reference, type, sex);
             var ranges = AGE_RANGES[type] || [];
-            var ageYears = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
-            var hasParentalHeights = (typeof appState.lastResults !== 'undefined' && appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
+            var ageYears = (appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
+            var hasParentalHeights = (appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
             var defaultIdx = getDefaultAgeRange(type, ageYears, hasParentalHeights);
             var ageRange = ranges[defaultIdx] || ranges[0];
 
