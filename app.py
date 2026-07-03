@@ -1,6 +1,7 @@
 """Flask application — routes and orchestration."""
 import logging
 import os
+import re
 from datetime import datetime as dt
 from datetime import timedelta
 
@@ -66,13 +67,56 @@ app = Flask(__name__)
 # base64-encoded chart images. Override with MAX_UPLOAD_BYTES in env.
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_BYTES", 10 * 1024 * 1024))
 
+_RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
     # Shared Redis storage in multi-worker prod; memory:// is fine for single
     # worker / dev. Configure with RATELIMIT_STORAGE_URI.
-    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+    storage_uri=_RATELIMIT_STORAGE_URI,
 )
+
+
+def _configured_worker_count():
+    """Best-effort read of the Gunicorn worker count from the environment.
+
+    Gunicorn honours WEB_CONCURRENCY and the --workers flag (surfaced via
+    GUNICORN_CMD_ARGS). We only need to know whether it is >1 so we can warn
+    that in-memory rate-limit state is not shared across workers.
+    """
+    web_concurrency = os.environ.get("WEB_CONCURRENCY")
+    if web_concurrency and web_concurrency.isdigit():
+        return int(web_concurrency)
+    cmd_args = os.environ.get("GUNICORN_CMD_ARGS", "")
+    match = re.search(r"--workers[= ](\d+)", cmd_args)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _warn_if_ratelimit_storage_unsafe():
+    """Warn when in-memory rate-limit storage is paired with multiple workers.
+
+    ``memory://`` is per-process, so with N Gunicorn workers the effective
+    limit is ~N× the configured value and resets whenever a worker restarts —
+    silently weakening the DoS protection on /calculate, /chart-data and
+    /export-pdf. Operators running >1 worker must set RATELIMIT_STORAGE_URI to
+    a shared backend (e.g. redis://).
+    """
+    if not _RATELIMIT_STORAGE_URI.startswith("memory://"):
+        return
+    workers = _configured_worker_count()
+    if workers is not None and workers > 1:
+        logger.warning(
+            "Rate limiting uses in-memory storage but %d workers are configured; "
+            "limits are per-worker and not shared. Set RATELIMIT_STORAGE_URI to a "
+            "shared backend (e.g. redis://) for correct multi-worker rate limiting.",
+            workers,
+        )
+
+
+_warn_if_ratelimit_storage_unsafe()
 
 # Per-endpoint limits. Both calculation endpoints run an rcpchgrowth lookup
 # that dominates per-request cost, so we apply the same env-tunable cap.
@@ -107,12 +151,13 @@ def request_entity_too_large(_error):
 # Conservative Content-Security-Policy. Chart.js + its annotation plugin are
 # self-hosted under /static/vendor/, so script-src stays strict ('self'). The
 # Google Fonts stylesheet (loaded from fonts.googleapis.com) pulls font files
-# from fonts.gstatic.com. 'unsafe-inline' on style-src is kept until the
-# remaining inline style attributes in index.html are audited out.
+# from fonts.gstatic.com. All CSS now lives in style.css (no inline <style> or
+# style attributes in markup — JS uses CSSOM, which CSP does not gate), so
+# style-src no longer needs 'unsafe-inline'.
 _CSP_POLICY = "; ".join([
     "default-src 'self'",
     "script-src 'self'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src 'self' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data:",
     "connect-src 'self'",
@@ -193,12 +238,26 @@ def perform_calculation(data):
         age_years,
     )
 
+    # Gestation actually passed to rcpchgrowth for the current measurement.
+    # rcpchgrowth always reads the corrected-age centile/SDS when a preterm
+    # gestation is supplied (for UK-WHO/Turner/Trisomy-21 it never resets to
+    # chronological), so we must withhold gestation once correction no longer
+    # applies — otherwise a child past the 1-/2-year cutoff, or a term
+    # gestation entered for reference, would be reported on corrected age.
+    # Passing 0 makes corrected == chronological, so extract_measurement_result
+    # returns the chronological figures.
+    calc_gestation_weeks = gestation_weeks if correction_applied else 0
+    calc_gestation_days = gestation_days if correction_applied else 0
+
     # Effective age for reference support lookups: corrected when applicable,
     # since rcpchgrowth performs its internal centile lookup against the
-    # corrected age in that case.
+    # corrected age in that case. A very preterm infant measured before its
+    # expected delivery date has a NEGATIVE corrected age but valid preterm
+    # reference data, so compute directly rather than via calculate_age_in_years
+    # (which forbids the edd-after-measurement ordering).
     if correction_applied:
         edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
-        effective_age_years = calculate_age_in_years(edd, measurement_date)
+        effective_age_years = (measurement_date - edd).days / 365.25
     else:
         effective_age_years = age_years
 
@@ -221,8 +280,8 @@ def perform_calculation(data):
             measurement_method=method,
             observation_value=value,
             reference=reference,
-            gestation_weeks=gestation_weeks,
-            gestation_days=gestation_days,
+            gestation_weeks=calc_gestation_weeks,
+            gestation_days=calc_gestation_days,
         )
         extracted = extract_measurement_result(measurement_result, value, method)
         all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
@@ -254,8 +313,8 @@ def perform_calculation(data):
                 measurement_method="bmi",
                 observation_value=bmi_value,
                 reference=reference,
-                gestation_weeks=gestation_weeks,
-                gestation_days=gestation_days,
+                gestation_weeks=calc_gestation_weeks,
+                gestation_days=calc_gestation_days,
             )
             bmi_extracted = extract_measurement_result(bmi_result, bmi_value, "bmi")
             all_warnings.extend(validate_measurement_sds(bmi_extracted["sds"], "bmi"))
@@ -316,9 +375,17 @@ def perform_calculation(data):
             )
         prev_age = calculate_age_in_years(birth_date, prev_date)
         prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
-        if gestation_weeks > 0 and should_apply_gestation_correction(gestation_weeks, prev_age):
+        prev_correction = gestation_weeks > 0 and should_apply_gestation_correction(
+            gestation_weeks, prev_age
+        )
+        # Mirror the current-measurement handling: only feed gestation to
+        # rcpchgrowth (and therefore report corrected centile/SDS) while
+        # correction still applies for this previous date.
+        prev_calc_weeks = gestation_weeks if prev_correction else 0
+        prev_calc_days = gestation_days if prev_correction else 0
+        if prev_correction:
             edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
-            corrected_prev_age = calculate_age_in_years(edd, prev_date)
+            corrected_prev_age = (prev_date - edd).days / 365.25
             if corrected_prev_age >= 0:
                 prev_result["corrected_age"] = round(corrected_prev_age, 4)
             prev_effective_age = corrected_prev_age
@@ -337,8 +404,8 @@ def perform_calculation(data):
                 measurement_method=method,
                 observation_value=value,
                 reference=reference,
-                gestation_weeks=gestation_weeks,
-                gestation_days=gestation_days,
+                gestation_weeks=prev_calc_weeks,
+                gestation_days=prev_calc_days,
             )
             extracted = extract_measurement_result(m, value, method)
             all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
@@ -378,6 +445,18 @@ def perform_calculation(data):
     bone_age_result = None
 
     if bone_age_assessments and height is not None:
+        # Prefer the assessment closest to the current measurement date so the
+        # first successfully-processed entry is the most clinically relevant one
+        # (ideally within the ±1 month plotting window). Entries with an
+        # unparseable date sort last; validate_date still rejects them if reached.
+        def _proximity(ba):
+            try:
+                d = dt.strptime(ba.get("date", ""), "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                return float("inf")
+            return abs((measurement_date - d).days)
+
+        bone_age_assessments = sorted(bone_age_assessments, key=_proximity)
         for ba in bone_age_assessments:
             try:
                 ba_date_str = ba.get("date", "")

@@ -142,3 +142,21 @@ describe('chart request sequencing', () => {
     expect(window.Chart).toHaveBeenCalled();
   });
 });
+
+describe('previous measurement points carry own centile/SDS (review #5)', () => {
+  afterEach(() => { appState.lastResults = null; });
+
+  test('each previous point includes its own centile and sds', () => {
+    appState.lastResults = {
+      age_years: 5,
+      previous_measurements: [
+        { age: 3.0, corrected_age: 2.8, height: { value: 95, centile: 25.0, sds: -0.67 } },
+      ],
+    };
+    const points = __chartTestHooks.getPreviousMeasurementPointsForTest('height');
+    expect(points).toHaveLength(1);
+    expect(points[0].centile).toBe(25.0);
+    expect(points[0].sds).toBe(-0.67);
+    expect(points[0].correctedX).toBe(2.8);
+  });
+});

@@ -70,6 +70,18 @@ function debounce(fn, delay) {
   return debounced;
 }
 
+// Local calendar date as YYYY-MM-DD. Must NOT use toISOString(), which returns
+// the UTC date — for a clinician east of UTC just after midnight that is
+// yesterday, shifting the default measurement date (and thus age/centile) by a
+// day. Built from local getFullYear/getMonth/getDate instead.
+function localDateString(d) {
+  var date = d || new Date();
+  var y = date.getFullYear();
+  var m = String(date.getMonth() + 1).padStart(2, '0');
+  var day = String(date.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 function showToast(message) {
     var toastEl = document.getElementById('toast');
     if (!toastEl) return;
@@ -130,7 +142,7 @@ async function handleExportPdf() {
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
-        a.download = 'growth-report-' + new Date().toISOString().split('T')[0] + '.pdf';
+        a.download = 'growth-report-' + localDateString() + '.pdf';
         a.click();
         URL.revokeObjectURL(url);
         showToast('PDF downloaded');
@@ -1415,7 +1427,7 @@ export function initApp() {
   // Default measurement date to today if not already set
   var measDateEl = document.getElementById('measurementDate');
   if (measDateEl && !measDateEl.value) {
-    measDateEl.value = new Date().toISOString().split('T')[0];
+    measDateEl.value = localDateString();
   }
 
   // Set initial mode label active state
@@ -1461,6 +1473,7 @@ export {
   formatCentile,
   formatSds,
   formatCalendarAge,
+  localDateString,
   buildMeasurementSummaryRows,
   buildExportPdfPayload,
   showChartFromSummary,

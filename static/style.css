@@ -2,6 +2,10 @@
    Growth Parameters Calculator — Stylesheet
    ============================================================ */
 
+/* Base root font size. Kept here (not as an inline <style> in index.html) so
+   the Content-Security-Policy can drop style-src 'unsafe-inline'. */
+html { font-size: 16px; }
+
 /* ── Custom Properties ────────────────────────────────────── */
 :root {
   --bg-primary: #ffffff;
