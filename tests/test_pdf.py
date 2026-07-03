@@ -188,3 +188,37 @@ class TestDecodeChartImage:
         payload = "data:image/png;base64," + base64.b64encode(sig + b"garbage" * 4).decode()
         with pytest.raises(ValueError):
             _decode_chart_image(payload)
+
+
+class TestChartImageSurfacing:
+    """Review #7/#8: label client charts and surface rejected ones."""
+
+    def _valid_png_data_url(self):
+        import base64
+        from io import BytesIO as _BytesIO
+
+        from PIL import Image as PILImage
+        img = PILImage.new("RGB", (2, 2), color=(255, 255, 255))
+        buf = _BytesIO()
+        img.save(buf, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    def test_rejected_image_recorded_and_pdf_still_builds(self, sample_results, sample_patient_info):
+        # An invalid (non-PNG) data URL must be recorded as rejected, not silently dropped.
+        chart_images = {"height": "data:image/png;base64,not!!base64"}
+        pdf = GrowthReportPDF(sample_results, sample_patient_info, chart_images)
+        buffer = pdf.generate()
+        assert buffer.read()[:5] == b"%PDF-"
+        assert len(pdf.rejected_images) == 1
+        assert pdf.rejected_images[0]["chart"] == "height"
+
+    def test_mixed_valid_and_rejected(self, sample_results, sample_patient_info):
+        chart_images = {
+            "height": self._valid_png_data_url(),
+            "weight": "data:image/png;base64,not!!base64",
+        }
+        pdf = GrowthReportPDF(sample_results, sample_patient_info, chart_images)
+        buffer = pdf.generate()
+        assert buffer.read()[:5] == b"%PDF-"
+        rejected = {r["chart"] for r in pdf.rejected_images}
+        assert rejected == {"weight"}

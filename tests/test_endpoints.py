@@ -1011,3 +1011,114 @@ class TestCalculateRateLimit:
                 limiter.reset()
             except Exception:
                 pass
+
+
+class TestGestationCorrectionSemantics:
+    """Regression tests for corrected-vs-chronological SDS selection (review #1, #2)."""
+
+    def _sds(self, client, payload):
+        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert r.status_code == 200, r.get_data(as_text=True)
+        return r.get_json()["results"]
+
+    def test_preterm_beyond_window_returns_chronological(self, client):
+        """A 34-weeker at ~18 months is past the correction cutoff (32-36 wk -> to age 1),
+        so the reported SDS must equal the no-gestation (chronological) result, not the
+        gestation-corrected one."""
+        base = {"sex": "male", "birth_date": "2024-01-01", "measurement_date": "2025-07-01",
+                "height": 79.0, "reference": "uk-who"}
+        chrono = self._sds(client, dict(base))
+        with_gest = self._sds(client, dict(base, gestation_weeks=34, gestation_days=0))
+        assert with_gest["gestation_correction_applied"] is False
+        assert with_gest["height"]["sds"] == chrono["height"]["sds"]
+        assert with_gest["height"]["centile"] == chrono["height"]["centile"]
+
+    def test_term_gestation_matches_no_gestation(self, client):
+        """Entering a term gestation (38 wk) must not shift centile/SDS."""
+        base = {"sex": "female", "birth_date": "2023-01-01", "measurement_date": "2023-07-01",
+                "weight": 7.0, "reference": "uk-who"}
+        chrono = self._sds(client, dict(base))
+        with_gest = self._sds(client, dict(base, gestation_weeks=38, gestation_days=0))
+        assert with_gest["gestation_correction_applied"] is False
+        assert with_gest["weight"]["sds"] == chrono["weight"]["sds"]
+
+    def test_preterm_within_window_is_corrected(self, client):
+        """A 32-weeker at ~6 months IS within the correction window; corrected age present
+        and SDS differs from chronological."""
+        base = {"sex": "female", "birth_date": "2022-09-01", "measurement_date": "2023-03-01",
+                "weight": 6.5, "reference": "uk-who"}
+        chrono = self._sds(client, dict(base))
+        with_gest = self._sds(client, dict(base, gestation_weeks=32, gestation_days=3))
+        assert with_gest["gestation_correction_applied"] is True
+        assert "corrected_age_years" in with_gest
+        assert with_gest["weight"]["sds"] != chrono["weight"]["sds"]
+
+    def test_preterm_measured_before_edd_is_accepted(self, client):
+        """A 30-weeker measured at 1 month chronological has a negative corrected age but
+        valid preterm reference data; it must not be rejected (review #2)."""
+        payload = {"sex": "female", "birth_date": "2023-01-01", "measurement_date": "2023-02-01",
+                   "gestation_weeks": 30, "gestation_days": 0, "weight": 2.0, "reference": "uk-who"}
+        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert r.status_code == 200, r.get_data(as_text=True)
+        assert r.get_json()["results"]["weight"]["sds"] is not None
+
+
+class TestBoneAgeSelection:
+    """Review #3: closest in-window assessment must be chosen, not first in list."""
+
+    def test_closest_in_window_assessment_is_chosen(self, client):
+        payload = {
+            "sex": "male", "birth_date": "2016-01-01", "measurement_date": "2023-06-15",
+            "height": 125.0, "reference": "uk-who",
+            "bone_age_assessments": [
+                {"date": "2021-01-01", "bone_age": 5.0},   # far, out of window
+                {"date": "2023-06-10", "bone_age": 7.5},   # close, within window
+            ],
+        }
+        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert r.status_code == 200, r.get_data(as_text=True)
+        ba = r.get_json()["results"]["bone_age_height"]
+        assert ba["bone_age"] == 7.5
+        assert ba["assessment_date"] == "2023-06-10"
+        assert ba["within_window"] is True
+
+    def test_order_independent_same_result(self, client):
+        """Reversing the input order must not change the chosen assessment."""
+        base = {
+            "sex": "male", "birth_date": "2016-01-01", "measurement_date": "2023-06-15",
+            "height": 125.0, "reference": "uk-who",
+        }
+        a = {"date": "2021-01-01", "bone_age": 5.0}
+        b = {"date": "2023-06-10", "bone_age": 7.5}
+        r1 = client.post("/calculate", data=json.dumps(dict(base, bone_age_assessments=[a, b])), content_type="application/json")
+        r2 = client.post("/calculate", data=json.dumps(dict(base, bone_age_assessments=[b, a])), content_type="application/json")
+        assert r1.get_json()["results"]["bone_age_height"]["bone_age"] == 7.5
+        assert r2.get_json()["results"]["bone_age_height"]["bone_age"] == 7.5
+
+
+class TestRateLimitStorageWarning:
+    """Review #6: warn when in-memory rate-limit storage is used with >1 worker."""
+
+    def test_warns_for_memory_storage_multi_worker(self, monkeypatch, caplog):
+        import app as app_module
+        monkeypatch.setattr(app_module, "_RATELIMIT_STORAGE_URI", "memory://")
+        monkeypatch.setenv("WEB_CONCURRENCY", "2")
+        with caplog.at_level("WARNING"):
+            app_module._warn_if_ratelimit_storage_unsafe()
+        assert any("per-worker" in r.message for r in caplog.records)
+
+    def test_no_warning_for_single_worker(self, monkeypatch, caplog):
+        import app as app_module
+        monkeypatch.setattr(app_module, "_RATELIMIT_STORAGE_URI", "memory://")
+        monkeypatch.setenv("WEB_CONCURRENCY", "1")
+        with caplog.at_level("WARNING"):
+            app_module._warn_if_ratelimit_storage_unsafe()
+        assert not any("per-worker" in r.message for r in caplog.records)
+
+    def test_no_warning_for_shared_storage(self, monkeypatch, caplog):
+        import app as app_module
+        monkeypatch.setattr(app_module, "_RATELIMIT_STORAGE_URI", "redis://localhost:6379/0")
+        monkeypatch.setenv("WEB_CONCURRENCY", "4")
+        with caplog.at_level("WARNING"):
+            app_module._warn_if_ratelimit_storage_unsafe()
+        assert not any("per-worker" in r.message for r in caplog.records)
