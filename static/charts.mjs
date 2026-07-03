@@ -616,7 +616,12 @@ function getPreviousMeasurementPoints(chartType) {
   return appState.lastResults.previous_measurements
     .filter(function(pm) { return pm[chartType] && pm[chartType].value !== undefined; })
     .map(function(pm) {
-      var point = { x: pm.age, y: pm[chartType].value };
+      var point = {
+        x: pm.age,
+        y: pm[chartType].value,
+        centile: pm[chartType].centile,
+        sds: pm[chartType].sds,
+      };
       if (pm.corrected_age !== undefined) {
         point.correctedX = pm.corrected_age;
       }
@@ -769,6 +774,10 @@ function renderChart(centiles, ageRange, chartType) {
         type: 'line',
         label: 'Gestation correction (previous)',
         data: [{ x: p.x, y: p.y }, { x: p.correctedX, y: p.y }],
+        // Carry this previous point's own centile/SDS so its tooltip does not
+        // fall back to the current measurement's values (review #5).
+        prevCentile: p.centile,
+        prevSds: p.sds,
         borderColor: colors.previousMarker,
         borderWidth: 1,
         borderDash: [3, 2],
@@ -864,19 +873,27 @@ function renderChart(centiles, ageRange, chartType) {
               // Gestation correction arrow tip (corrected age)
               if (datasetLabel.indexOf('Gestation correction') === 0) {
                 var chronPoint = context.dataset.data[0];
-                var measurement = appState.lastResults[currentChartType];
                 var name = CHART_DISPLAY_NAMES[currentChartType] || currentChartType;
                 var unit = CHART_UNITS[currentChartType] || '';
+                var isPrevious = datasetLabel.indexOf('(previous)') !== -1;
+                // A previous correction arrow carries its OWN centile/SDS on the
+                // dataset; only the current arrow reads the current measurement.
+                var centile = isPrevious
+                  ? context.dataset.prevCentile
+                  : (appState.lastResults[currentChartType] || {}).centile;
+                var sds = isPrevious
+                  ? context.dataset.prevSds
+                  : (appState.lastResults[currentChartType] || {}).sds;
                 var lines = [
                   'Corrected age: ' + point.x.toFixed(2) + ' years',
                   'Chronological age: ' + chronPoint.x.toFixed(2) + ' years',
                   name + ': ' + point.y + ' ' + unit,
                 ];
-                if (measurement && measurement.centile !== null) {
-                  lines.push('Centile (corrected): ' + formatCentile(measurement.centile));
+                if (centile !== null && centile !== undefined) {
+                  lines.push('Centile (corrected): ' + formatCentile(centile));
                 }
-                if (measurement && measurement.sds !== null) {
-                  lines.push('SDS (corrected): ' + formatSds(measurement.sds));
+                if (sds !== null && sds !== undefined) {
+                  lines.push('SDS (corrected): ' + formatSds(sds));
                 }
                 return lines;
               }
@@ -1075,6 +1092,7 @@ export function initCharts() {
 }
 
 export const __chartTestHooks = {
+  getPreviousMeasurementPointsForTest: getPreviousMeasurementPoints,
   renderAgeRangeSelectorForTest: renderAgeRangeSelector,
   syncChartTabsForTest: syncChartTabs,
   handleChartTabKeydownForTest: handleChartTabKeydown,

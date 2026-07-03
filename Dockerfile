@@ -14,4 +14,9 @@ EXPOSE 8080
 
 # Shell form so ${PORT} is expanded at runtime; hosts like Render.com inject
 # a dynamic PORT and expect the app to bind to it.
-CMD exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers 2 --timeout 120 --access-logfile - app:app
+#
+# Default to a SINGLE worker so the default in-memory rate limiter is
+# authoritative. To scale out, set WEB_CONCURRENCY>1 AND point
+# RATELIMIT_STORAGE_URI at a shared backend (e.g. redis://) — otherwise rate
+# limits become per-worker (see _warn_if_ratelimit_storage_unsafe in app.py).
+CMD exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers "${WEB_CONCURRENCY:-1}" --timeout 120 --access-logfile - app:app

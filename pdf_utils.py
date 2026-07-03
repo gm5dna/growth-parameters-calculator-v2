@@ -458,13 +458,14 @@ class GrowthReportPDF:
     def _add_chart_images(self, story):
         """Decode base64 data URL chart images and embed in PDF.
 
-        Rejected images are recorded on ``self.rejected_images`` so the
-        caller can surface a structured warning instead of silently
-        omitting charts from the report.
+        Rejected images are recorded on ``self.rejected_images`` AND surfaced in
+        the report itself (see below), so an oversized/invalid chart is never
+        silently dropped without notice.
         """
         if not self.chart_images:
             return
 
+        chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
         first_chart = True
         for chart_name, data_url in self.chart_images.items():
             try:
@@ -480,16 +481,43 @@ class GrowthReportPDF:
                 height=10 * cm,
                 kind="proportional",
             )
-            chart_labels = {"height": "Height", "weight": "Weight", "bmi": "BMI", "ofc": "OFC"}
             label = chart_labels.get(chart_name, chart_name.capitalize())
             block = []
             if first_chart:
                 block.append(Paragraph("Growth Charts", self.styles["SectionTitle"]))
+                # Charts are the PNGs rendered in the user's browser, embedded
+                # as-is. Unlike the numeric results, they are NOT regenerated
+                # server-side, so flag them as client-supplied (review #7).
+                block.append(Paragraph(
+                    "Charts below are reproduced from the images generated in your "
+                    "browser and have not been re-rendered server-side.",
+                    self.styles["SubInfo"],
+                ))
+                block.append(Spacer(1, 4))
                 first_chart = False
             block.append(Paragraph(f"<b>{label}</b>", self.styles["Normal"]))
             block.append(Spacer(1, 4))
             block.append(img)
             block.append(Spacer(1, 12))
+            story.append(KeepTogether(block))
+
+        # Surface any rejected charts in the report rather than dropping them
+        # silently (review #8). This runs even when every image was rejected.
+        if self.rejected_images:
+            heading = "Growth Charts" if first_chart else None
+            block = []
+            if heading:
+                block.append(Paragraph(heading, self.styles["SectionTitle"]))
+            names = ", ".join(
+                chart_labels.get(r["chart"], str(r["chart"]).capitalize())
+                for r in self.rejected_images
+            )
+            block.append(Paragraph(
+                f"⚠ The following charts could not be included and were "
+                f"omitted: {names}.",
+                self.styles["WarningText"],
+            ))
+            block.append(Spacer(1, 8))
             story.append(KeepTogether(block))
 
     def _add_previous_measurements(self, story):

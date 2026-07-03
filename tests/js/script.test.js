@@ -373,3 +373,28 @@ describe('advanced table row labels', () => {
     expect(document.querySelector('.ba-standard').getAttribute('aria-label')).toBe('Bone age standard');
   });
 });
+
+describe('localDateString (review #4 — local, not UTC)', () => {
+  let localDateString;
+  beforeAll(async () => {
+    ({ localDateString } = await import('../../static/script.mjs'));
+  });
+
+  test('formats a local date as YYYY-MM-DD with zero padding', () => {
+    // 3 July 2026, 00:30 local time
+    const d = new Date(2026, 6, 3, 0, 30, 0);
+    expect(localDateString(d)).toBe('2026-07-03');
+  });
+
+  test('defaults to now when called with no argument', () => {
+    const now = new Date();
+    const expected = now.getFullYear() + '-' +
+      String(now.getMonth() + 1).padStart(2, '0') + '-' +
+      String(now.getDate()).padStart(2, '0');
+    expect(localDateString()).toBe(expected);
+  });
+
+  test('pads single-digit months and days', () => {
+    expect(localDateString(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+});
