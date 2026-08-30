@@ -32,6 +32,7 @@ from constants import (
 from models import (
     SdsOutOfRangeError,
     UnsupportedCalculationError,
+    build_provenance,
     create_measurement,
     extract_measurement_result,
     validate_measurement_sds,
@@ -269,6 +270,7 @@ def perform_calculation(data):
     }
 
     all_warnings = []
+    first_measurement = None
     for method, value in [("weight", weight), ("height", height), ("ofc", ofc)]:
         if value is None:
             continue
@@ -286,6 +288,8 @@ def perform_calculation(data):
         extracted = extract_measurement_result(measurement_result, value, method)
         all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
         results[method] = extracted
+        if first_measurement is None:
+            first_measurement = measurement_result
 
         if correction_applied and "corrected_age_years" not in results:
             dates = measurement_result["measurement_dates"]
@@ -495,6 +499,7 @@ def perform_calculation(data):
                     "height": height,
                     "centile": ba_extracted["centile"],
                     "sds": ba_extracted["sds"],
+                    "centile_band": ba_extracted["centile_band"],
                     "within_window": within_window,
                 }
                 break
@@ -528,6 +533,7 @@ def perform_calculation(data):
         ]
 
     results["validation_messages"] = all_warnings
+    results["provenance"] = build_provenance(reference, first_measurement)
     results["_patient"] = {
         "sex": sex,
         "birth_date": birth_date.isoformat(),

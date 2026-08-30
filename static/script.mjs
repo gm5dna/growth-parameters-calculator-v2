@@ -807,6 +807,7 @@ function buildMeasurementSummaryRows(results) {
         centile: formatCentile(measurement.centile),
         sds: formatSds(measurement.sds),
         extra: extra,
+        band: measurement.centile_band || '',
       };
     });
 }
@@ -911,6 +912,16 @@ function renderMeasurementSummary(rows) {
     tr.appendChild(chartCell);
 
     tbody.appendChild(tr);
+
+    if (row.band) {
+      var bandRow = document.createElement('tr');
+      bandRow.className = 'measurement-band-row';
+      var bandCell = document.createElement('td');
+      bandCell.colSpan = 5;
+      bandCell.textContent = row.band;
+      bandRow.appendChild(bandCell);
+      tbody.appendChild(bandRow);
+    }
   });
   table.appendChild(tbody);
   tableWrap.appendChild(table);

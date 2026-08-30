@@ -30,7 +30,7 @@ MAX_GESTATION_WEEKS = 44
 PRETERM_THRESHOLD_WEEKS = 37
 
 # Valid values
-VALID_REFERENCES = {"uk-who", "turners-syndrome", "trisomy-21", "cdc"}
+VALID_REFERENCES = {"uk-who", "turners-syndrome", "trisomy-21", "cdc", "who", "trisomy-21-aap"}
 DEFAULT_REFERENCE = "uk-who"
 VALID_SEXES = {"male", "female"}
 VALID_MEASUREMENT_METHODS = {"height", "weight", "ofc", "bmi"}
@@ -128,6 +128,31 @@ REFERENCE_CAPABILITIES = {
         "max_age": 20.0,
         "method_age_overrides": {
             "ofc": (0.0, 3.0),
+            "bmi": (2.0, 20.0),
+        },
+    },
+    # WHO 2006/2007 standards (rcpchgrowth who.py): no preterm data; weight
+    # stops at 10y, OFC at 5y 1m (1856 days), height/BMI run to 19y.
+    "who": {
+        "sexes": {"male", "female"},
+        "methods": {"height", "weight", "ofc", "bmi"},
+        "min_age": 0.0,
+        "max_age": 19.0,
+        "method_age_overrides": {
+            "weight": (0.0, 10.0),
+            "ofc": (0.0, 1856 / 365.25),
+        },
+    },
+    # Zemel 2015 US Down syndrome charts (rcpchgrowth trisomy_21_aap.py):
+    # height/OFC from 1 month, BMI from 2y, everything to 20y.
+    "trisomy-21-aap": {
+        "sexes": {"male", "female"},
+        "methods": {"height", "weight", "ofc", "bmi"},
+        "min_age": 0.0,
+        "max_age": 20.0,
+        "method_age_overrides": {
+            "height": (0.083, 20.0),
+            "ofc": (0.083, 20.0),
             "bmi": (2.0, 20.0),
         },
     },

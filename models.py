@@ -1,4 +1,7 @@
 """Wrapper around rcpchgrowth Measurement — never call the library directly from routes."""
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _package_version
+
 from rcpchgrowth import Measurement
 
 from constants import (
@@ -100,4 +103,28 @@ def extract_measurement_result(measurement_dict, observation_value, measurement_
         "value": observation_value,
         "centile": centile,
         "sds": sds,
+        # RCPCH's standard wording, e.g. "This height measurement is between
+        # the 25th and 50th centiles." — kept verbatim to match the Digital
+        # Growth Charts.
+        "centile_band": calc.get("corrected_centile_band"),
+    }
+
+
+def build_provenance(reference, measurement_dict=None):
+    """Describe which growth reference and rcpchgrowth build produced a result.
+
+    rcpchgrowth >= 4.6 stamps each Measurement with a ``provenance`` block;
+    prefer that (it carries the release commit) and fall back to the installed
+    package version so the block is present even when no measurement was made.
+    """
+    engine = ((measurement_dict or {}).get("provenance") or {}).get("calculation_engine") or {}
+    try:
+        installed = _package_version("rcpchgrowth")
+    except PackageNotFoundError:
+        installed = "unknown"
+    return {
+        "growth_reference": reference,
+        "engine": "rcpchgrowth",
+        "engine_version": engine.get("version") or installed,
+        "engine_commit": engine.get("commit") or "unknown",
     }
