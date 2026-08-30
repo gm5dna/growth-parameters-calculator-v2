@@ -120,9 +120,10 @@ class NumberedCanvas(BaseCanvas):
     Second pass: save() replays all pages, adds the footer, then emits them.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, footer_text="", **kwargs):
         BaseCanvas.__init__(self, *args, **kwargs)
         self._saved_page_states = []
+        self._footer_text = footer_text
 
     def showPage(self):
         self._saved_page_states.append(dict(self.__dict__))
@@ -137,6 +138,8 @@ class NumberedCanvas(BaseCanvas):
             self.drawRightString(
                 A4[0] - 2 * cm, 1.2 * cm, f"Page {self._pageNumber} of {num_pages}"
             )
+            if self._footer_text:
+                self.drawString(2 * cm, 1.2 * cm, self._footer_text)
             BaseCanvas.showPage(self)
         BaseCanvas.save(self)
 
@@ -256,9 +259,26 @@ class GrowthReportPDF:
         self._add_previous_measurements(story)
         self._add_disclaimer(story)
 
-        doc.build(story, canvasmaker=NumberedCanvas)
+        footer_text = self._provenance_footer()
+
+        def make_canvas(*args, **kwargs):
+            return NumberedCanvas(*args, footer_text=footer_text, **kwargs)
+
+        doc.build(story, canvasmaker=make_canvas)
         buffer.seek(0)
         return buffer
+
+    def _provenance_footer(self):
+        """Footer line naming the calculation engine and reference, if known."""
+        prov = self.results.get("provenance")
+        if not isinstance(prov, dict) or not prov.get("engine_version"):
+            return ""
+        ref_key = prov.get("growth_reference") or self.patient_info.get("reference", "uk-who")
+        ref_name = REFERENCE_NAMES.get(ref_key, ref_key)
+        return (
+            f"Calculated with {prov.get('engine', 'rcpchgrowth')} "
+            f"{prov['engine_version']} \u00b7 reference: {ref_name}"
+        )
 
     def _add_header(self, story):
         """Add report title and generation metadata."""
