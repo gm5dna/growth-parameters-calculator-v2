@@ -31,6 +31,7 @@ export function formatResultsAsText(results, patientInfo) {
     lines.push(m.label + ': ' + valueStr);
     if (data.centile !== null && data.centile !== undefined) lines.push('  Centile: ' + formatCentile(data.centile));
     if (data.sds !== null && data.sds !== undefined) lines.push('  SDS: ' + formatSds(data.sds));
+    if (data.centile_band) lines.push('  ' + data.centile_band);
     if (m.key === 'bmi' && data.percentage_median !== null && data.percentage_median !== undefined) {
       lines.push('  % Median: ' + data.percentage_median.toFixed(1) + '%');
     }

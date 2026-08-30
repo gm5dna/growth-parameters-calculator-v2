@@ -499,6 +499,7 @@ def perform_calculation(data):
                     "height": height,
                     "centile": ba_extracted["centile"],
                     "sds": ba_extracted["sds"],
+                    "centile_band": ba_extracted["centile_band"],
                     "within_window": within_window,
                 }
                 break

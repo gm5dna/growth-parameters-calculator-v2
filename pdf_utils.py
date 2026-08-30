@@ -189,6 +189,16 @@ class GrowthReportPDF:
 
         self.styles.add(
             ParagraphStyle(
+                "BandNote",
+                parent=self.styles["Normal"],
+                fontName="Helvetica-Oblique",
+                fontSize=8.5,
+                textColor=colors.HexColor("#555555"),
+                leading=10,
+            )
+        )
+        self.styles.add(
+            ParagraphStyle(
                 "Disclaimer",
                 parent=self.styles["Normal"],
                 fontName="Helvetica",
@@ -348,6 +358,9 @@ class GrowthReportPDF:
                 centile = self._fmt_centile(m.get("centile"))
                 sds = self._fmt_sds(m.get("sds"))
                 measurements.append((label, f"{value} {unit}", centile, sds))
+                band = m.get("centile_band")
+                if band:
+                    measurements.append((Paragraph(band, self.styles["BandNote"]), "", "", ""))
 
         if not measurements:
             return
@@ -359,9 +372,16 @@ class GrowthReportPDF:
 
         col_widths = [4.5 * cm, 4.5 * cm, 4 * cm, 4 * cm]
         table = Table(data, colWidths=col_widths)
+        # Band-sentence rows (a Paragraph in column 0) span the full width.
+        band_spans = [
+            ("SPAN", (0, i), (-1, i))
+            for i, row in enumerate(data)
+            if isinstance(row[0], Paragraph)
+        ]
         table.setStyle(
             TableStyle(
-                [
+                band_spans
+                + [
                     # Header row
                     ("BACKGROUND", (0, 0), (-1, 0), HEADER_BG),
                     ("TEXTCOLOR", (0, 0), (-1, 0), BLUE_ACCENT),

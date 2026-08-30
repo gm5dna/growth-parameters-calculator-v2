@@ -40,6 +40,14 @@ describe('formatResultsAsText', () => {
     expect(text).not.toContain('Calculated with');
   });
 
+  test('includes centile band sentence under a measurement', () => {
+    const results = Object.assign({}, baseResults, {
+      height: { value: 96.0, centile: 25.5, sds: -0.67, centile_band: 'This height measurement is on or near the 25th centile.' },
+    });
+    const text = formatResultsAsText(results, baseInfo);
+    expect(text).toContain('  SDS: -0.67\n  This height measurement is on or near the 25th centile.');
+  });
+
   test('includes reference', () => {
     const text = formatResultsAsText(baseResults, baseInfo);
     expect(text).toContain('Reference: UK-WHO');
