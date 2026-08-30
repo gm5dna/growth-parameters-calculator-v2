@@ -778,6 +778,38 @@ class TestBmiPercentageMedianUsesCorrectedAge:
         assert bmi is not None
         assert bmi["percentage_median"] is not None
 
+    def test_preterm_bmi_percentage_median_matches_corrected_age_value(self, client):
+        # Guards the path touched by the rcpchgrowth 4.6.0 fix to
+        # chronological_percentage_median_bmi: the app must report the
+        # corrected-age figure, and the two must differ for a 30-week infant.
+        from datetime import date
+
+        from models import create_measurement
+
+        payload = {
+            "sex": "female",
+            "birth_date": "2022-01-01",
+            "measurement_date": "2023-07-01",
+            "gestation_weeks": 30,
+            "gestation_days": 0,
+            "weight": 9.0,
+            "height": 78.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        bmi = response.get_json()["results"]["bmi"]
+        raw = create_measurement(
+            sex="female",
+            birth_date=date(2022, 1, 1),
+            measurement_date=date(2023, 7, 1),
+            measurement_method="bmi",
+            observation_value=bmi["value"],
+            reference="uk-who",
+            gestation_weeks=30,
+        )["measurement_calculated_values"]
+        assert bmi["percentage_median"] == round(raw["corrected_percentage_median_bmi"], 1)
+        assert raw["corrected_percentage_median_bmi"] != raw["chronological_percentage_median_bmi"]
+
 
 class TestReferenceBoundaryCases:
     """Boundary tests around reference age cut-offs."""
