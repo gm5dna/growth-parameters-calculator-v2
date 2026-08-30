@@ -117,3 +117,21 @@ class TestExtractMeasurementResult:
         }
         with pytest.raises(UnsupportedCalculationError):
             extract_measurement_result(fake_dict, 95.0, "height")
+
+
+class TestProvenance:
+    """rcpchgrowth >= 4.6 stamps every result with the reference and engine used."""
+
+    def test_measurement_carries_provenance(self):
+        result = create_measurement(
+            sex="male",
+            birth_date=date(2020, 1, 1),
+            measurement_date=date(2023, 6, 15),
+            measurement_method="height",
+            observation_value=95.0,
+            reference="trisomy-21",
+        )
+        prov = result["provenance"]
+        assert prov["growth_reference"] == "trisomy-21"
+        assert prov["calculation_engine"]["name"] == "rcpchgrowth"
+        assert prov["calculation_engine"]["version"]
