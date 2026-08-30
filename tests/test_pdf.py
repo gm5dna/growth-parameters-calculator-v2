@@ -222,3 +222,54 @@ class TestChartImageSurfacing:
         assert buffer.read()[:5] == b"%PDF-"
         rejected = {r["chart"] for r in pdf.rejected_images}
         assert rejected == {"weight"}
+
+
+def _pdf_text(buffer):
+    """Inflate every Flate stream and return the raw content — enough to grep for literal strings."""
+    import base64
+    import re
+    import zlib
+
+    raw = buffer.getvalue()
+    out = []
+    for m in re.finditer(rb"stream\r?\n(.*?)endstream", raw, re.S):
+        data = m.group(1).strip()
+        if data.endswith(b"~>"):  # ReportLab: ASCII85 (no <~ prefix) over Flate
+            data = base64.a85decode(data[:-2])
+        try:
+            data = zlib.decompress(data)
+        except zlib.error:
+            pass
+        out.append(data)
+    return b"".join(out).decode("latin-1")
+
+
+class TestProvenanceFooter:
+    def test_footer_names_engine_version_and_reference(self, sample_results, sample_patient_info):
+        sample_results["provenance"] = {
+            "growth_reference": "uk-who",
+            "engine": "rcpchgrowth",
+            "engine_version": "9.9.9",
+            "engine_commit": "abc",
+        }
+        text = _pdf_text(GrowthReportPDF(sample_results, sample_patient_info).generate())
+        assert "Calculated with rcpchgrowth 9.9.9" in text
+        assert "reference: UK-WHO" in text
+
+    def test_no_footer_line_without_provenance(self, sample_results, sample_patient_info):
+        text = _pdf_text(GrowthReportPDF(sample_results, sample_patient_info).generate())
+        assert "Calculated with" not in text
+
+
+class TestCentileBandInPdf:
+    def test_measurement_table_includes_band_sentence(self, sample_results, sample_patient_info):
+        sample_results["height"]["centile_band"] = "This height measurement is between the 25th and 50th centiles."
+        text = _pdf_text(GrowthReportPDF(sample_results, sample_patient_info).generate())
+        assert "between the 25th and 50th centiles" in text
+
+
+class TestReferenceNames:
+    def test_new_references_have_display_names(self):
+        from pdf_utils import REFERENCE_NAMES
+        assert REFERENCE_NAMES["who"] == "WHO"
+        assert REFERENCE_NAMES["trisomy-21-aap"] == "Trisomy 21 (AAP, US)"

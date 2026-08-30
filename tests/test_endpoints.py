@@ -778,6 +778,38 @@ class TestBmiPercentageMedianUsesCorrectedAge:
         assert bmi is not None
         assert bmi["percentage_median"] is not None
 
+    def test_preterm_bmi_percentage_median_matches_corrected_age_value(self, client):
+        # Guards the path touched by the rcpchgrowth 4.6.0 fix to
+        # chronological_percentage_median_bmi: the app must report the
+        # corrected-age figure, and the two must differ for a 30-week infant.
+        from datetime import date
+
+        from models import create_measurement
+
+        payload = {
+            "sex": "female",
+            "birth_date": "2022-01-01",
+            "measurement_date": "2023-07-01",
+            "gestation_weeks": 30,
+            "gestation_days": 0,
+            "weight": 9.0,
+            "height": 78.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        bmi = response.get_json()["results"]["bmi"]
+        raw = create_measurement(
+            sex="female",
+            birth_date=date(2022, 1, 1),
+            measurement_date=date(2023, 7, 1),
+            measurement_method="bmi",
+            observation_value=bmi["value"],
+            reference="uk-who",
+            gestation_weeks=30,
+        )["measurement_calculated_values"]
+        assert bmi["percentage_median"] == round(raw["corrected_percentage_median_bmi"], 1)
+        assert raw["corrected_percentage_median_bmi"] != raw["chronological_percentage_median_bmi"]
+
 
 class TestReferenceBoundaryCases:
     """Boundary tests around reference age cut-offs."""
@@ -1122,3 +1154,95 @@ class TestRateLimitStorageWarning:
         with caplog.at_level("WARNING"):
             app_module._warn_if_ratelimit_storage_unsafe()
         assert not any("per-worker" in r.message for r in caplog.records)
+
+
+class TestProvenance:
+    def test_calculate_reports_engine_provenance(self, client):
+        from importlib.metadata import version
+
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-01-01",
+            "measurement_date": "2024-01-01",
+            "reference": "trisomy-21",
+            "height": 95.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        prov = response.get_json()["results"]["provenance"]
+        assert prov["growth_reference"] == "trisomy-21"
+        assert prov["engine"] == "rcpchgrowth"
+        assert prov["engine_version"] == version("rcpchgrowth")
+        assert isinstance(prov["engine_commit"], str)
+
+
+class TestCentileBandWording:
+    def test_each_measurement_carries_centile_band(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2020-01-01",
+            "measurement_date": "2024-01-01",
+            "height": 100.0,
+            "weight": 16.0,
+            "ofc": 50.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        results = response.get_json()["results"]
+        assert results["height"]["centile_band"].startswith("This height measurement is")
+        assert results["weight"]["centile_band"].startswith("This weight measurement is")
+        assert results["ofc"]["centile_band"].startswith("This head circumference measurement is")
+        assert results["bmi"]["centile_band"].startswith("This body mass index measurement is")
+
+
+class TestWhoAndTrisomy21AapEndpoints:
+    def test_who_calculates_all_methods_for_a_toddler(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2021-06-01",
+            "measurement_date": "2024-06-01",
+            "reference": "who",
+            "height": 95.0,
+            "weight": 14.0,
+            "ofc": 49.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200, response.get_json()
+        results = response.get_json()["results"]
+        for key in ("height", "weight", "ofc", "bmi"):
+            assert isinstance(results[key]["sds"], float), key
+        assert results["provenance"]["growth_reference"] == "who"
+
+    def test_who_weight_over_10y_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2012-01-01",
+            "measurement_date": "2024-06-01",
+            "reference": "who",
+            "weight": 40.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 422
+        assert response.get_json()["error_code"] == "ERR_011"
+
+    def test_trisomy_21_aap_calculates(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2016-01-01",
+            "measurement_date": "2024-06-01",
+            "reference": "trisomy-21-aap",
+            "height": 115.0,
+            "weight": 25.0,
+            "ofc": 50.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200, response.get_json()
+        results = response.get_json()["results"]
+        for key in ("height", "weight", "ofc", "bmi"):
+            assert isinstance(results[key]["sds"], float), key
+
+    def test_chart_data_for_new_references(self, client):
+        for ref, method in (("who", "ofc"), ("trisomy-21-aap", "bmi")):
+            payload = {"reference": ref, "measurement_method": method, "sex": "female"}
+            response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+            assert response.status_code == 200, (ref, method)

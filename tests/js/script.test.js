@@ -32,11 +32,23 @@ describe('buildMeasurementSummaryRows', () => {
     });
 
     expect(rows).toEqual([
-      { key: 'weight', label: 'Weight', value: '18.2 kg', centile: '16.7%', sds: '-0.97', extra: '' },
-      { key: 'height', label: 'Height', value: '110.4 cm', centile: '16.6%', sds: '-0.97', extra: '' },
-      { key: 'bmi', label: 'BMI', value: '14.9 kg/m²', centile: '31.1%', sds: '-0.49', extra: '96.1% median' },
-      { key: 'ofc', label: 'OFC', value: '51.2 cm', centile: '10.6%', sds: '-1.25', extra: '' },
+      { key: 'weight', label: 'Weight', value: '18.2 kg', centile: '16.7%', sds: '-0.97', extra: '', band: '' },
+      { key: 'height', label: 'Height', value: '110.4 cm', centile: '16.6%', sds: '-0.97', extra: '', band: '' },
+      { key: 'bmi', label: 'BMI', value: '14.9 kg/m²', centile: '31.1%', sds: '-0.49', extra: '96.1% median', band: '' },
+      { key: 'ofc', label: 'OFC', value: '51.2 cm', centile: '10.6%', sds: '-1.25', extra: '', band: '' },
     ]);
+  });
+
+  test('carries the RCPCH centile band sentence when present', () => {
+    const rows = buildMeasurementSummaryRows({
+      height: { value: 110.4, centile: 16.6, sds: -0.97, centile_band: 'This height measurement is on or near the 9th centile.' },
+    });
+    expect(rows[0].band).toBe('This height measurement is on or near the 9th centile.');
+  });
+
+  test('band is empty when the server gives none', () => {
+    const rows = buildMeasurementSummaryRows({ weight: { value: 12, centile: null, sds: null } });
+    expect(rows[0].band).toBe('');
   });
 
   test('omits missing measurements and preserves chart keys', () => {
@@ -45,7 +57,7 @@ describe('buildMeasurementSummaryRows', () => {
     });
 
     expect(rows).toEqual([
-      { key: 'weight', label: 'Weight', value: '12 kg', centile: 'N/A', sds: 'N/A', extra: '' },
+      { key: 'weight', label: 'Weight', value: '12 kg', centile: 'N/A', sds: 'N/A', extra: '', band: '' },
     ]);
   });
 });

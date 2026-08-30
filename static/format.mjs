@@ -17,3 +17,19 @@ export function formatSds(sds) {
   const sign = sds >= 0 ? '+' : '';
   return sign + sds.toFixed(2);
 }
+
+/** Display names for reference slugs — mirrors REFERENCE_NAMES in pdf_utils.py. */
+const REFERENCE_NAMES = {
+  'uk-who': 'UK-WHO',
+  'turners-syndrome': 'Turner Syndrome',
+  'trisomy-21': 'Trisomy 21',
+  'cdc': 'CDC (US)',
+  'who': 'WHO',
+  'trisomy-21-aap': 'Trisomy 21 (AAP, US)',
+};
+
+/** Human-readable name for a growth reference slug; unknown slugs are upper-cased. */
+export function formatReferenceName(slug) {
+  const key = slug || 'uk-who';
+  return REFERENCE_NAMES[key] || key.toUpperCase();
+}

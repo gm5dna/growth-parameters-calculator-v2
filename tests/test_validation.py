@@ -367,3 +367,42 @@ class TestValidateReferenceSupports:
     def test_unknown_reference_raises(self):
         with pytest.raises(ValidationError):
             validate_reference_supports("unknown", "male", "height", 10.0)
+
+
+class TestWhoAndTrisomy21AapSupport:
+    def test_who_height_18y_ok(self):
+        validate_reference_supports("who", "male", "height", 18.0)
+
+    def test_who_weight_above_10y_rejected(self):
+        with pytest.raises(ValidationError) as exc_info:
+            validate_reference_supports("who", "female", "weight", 10.5)
+        assert exc_info.value.code == "ERR_011"
+
+    def test_who_ofc_above_5y_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("who", "male", "ofc", 6.0)
+
+    def test_who_preterm_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("who", "male", "weight", -0.1)
+
+    def test_who_above_19y_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("who", "male", "height", 19.5)
+
+    def test_t21_aap_height_10y_ok(self):
+        validate_reference_supports("trisomy-21-aap", "female", "height", 10.0)
+
+    def test_t21_aap_ofc_19y_ok(self):
+        validate_reference_supports("trisomy-21-aap", "male", "ofc", 19.0)
+
+    def test_t21_aap_bmi_below_2y_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("trisomy-21-aap", "male", "bmi", 1.0)
+
+    def test_t21_aap_height_below_1_month_rejected(self):
+        with pytest.raises(ValidationError):
+            validate_reference_supports("trisomy-21-aap", "female", "height", 0.05)
+
+    def test_t21_aap_weight_newborn_ok(self):
+        validate_reference_supports("trisomy-21-aap", "female", "weight", 0.01)

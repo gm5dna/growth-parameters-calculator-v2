@@ -39,7 +39,7 @@ packaging==26.1
     # via
     #   gunicorn
     #   limits
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   -r requirements.in
     #   reportlab
@@ -47,7 +47,7 @@ python-dateutil==2.9.0.post0
     # via
     #   -r requirements.in
     #   rcpchgrowth
-rcpchgrowth==4.4.1
+rcpchgrowth==4.6.1
     # via -r requirements.in
 reportlab==4.4.10
     # via -r requirements.in

@@ -27,6 +27,32 @@ describe('formatResultsAsText', () => {
     expect(text).toContain('Age: 3.00 years');
   });
 
+  test('ends with provenance line when present', () => {
+    const results = Object.assign({}, baseResults, {
+      provenance: { growth_reference: 'uk-who', engine: 'rcpchgrowth', engine_version: '9.9.9' },
+    });
+    const text = formatResultsAsText(results, baseInfo);
+    expect(text.trim().split('\n').pop()).toBe('Calculated with rcpchgrowth 9.9.9 (UK-WHO)');
+  });
+
+  test('omits provenance line when absent', () => {
+    const text = formatResultsAsText(baseResults, baseInfo);
+    expect(text).not.toContain('Calculated with');
+  });
+
+  test('includes centile band sentence under a measurement', () => {
+    const results = Object.assign({}, baseResults, {
+      height: { value: 96.0, centile: 25.5, sds: -0.67, centile_band: 'This height measurement is on or near the 25th centile.' },
+    });
+    const text = formatResultsAsText(results, baseInfo);
+    expect(text).toContain('  SDS: -0.67\n  This height measurement is on or near the 25th centile.');
+  });
+
+  test('uses a readable reference name for hyphenated slugs', () => {
+    const text = formatResultsAsText(baseResults, { sex: 'male', reference: 'trisomy-21-aap' });
+    expect(text).toContain('Reference: Trisomy 21 (AAP, US)');
+  });
+
   test('includes reference', () => {
     const text = formatResultsAsText(baseResults, baseInfo);
     expect(text).toContain('Reference: UK-WHO');

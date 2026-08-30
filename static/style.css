@@ -625,6 +625,14 @@ input::placeholder {
   vertical-align: middle;
 }
 
+.measurement-summary-table .measurement-band-row td {
+  font-size: 0.85em;
+  font-style: italic;
+  color: var(--text-secondary);
+  padding-top: 0;
+  border-top: none;
+}
+
 .measurement-summary-table td:nth-child(2),
 .measurement-summary-table td:nth-child(3),
 .measurement-summary-table td:nth-child(4) {

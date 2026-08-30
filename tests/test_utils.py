@@ -1,4 +1,6 @@
 """Tests for utils module."""
+import pytest
+
 from utils import (
     calculate_mid_parental_height,
     format_error_response,
@@ -123,3 +125,17 @@ class TestGetChartData:
     def test_ofc_method(self):
         result = get_chart_data("uk-who", "ofc", "female")
         assert len(result) == 9
+
+
+class TestNewReferenceChartData:
+    @pytest.mark.parametrize("reference", ["who", "trisomy-21-aap"])
+    @pytest.mark.parametrize("method", ["height", "weight", "bmi", "ofc"])
+    @pytest.mark.parametrize("sex", ["male", "female"])
+    def test_nine_clean_centile_lines(self, reference, method, sex):
+        result = get_chart_data(reference, method, sex)
+        assert len(result) == 9
+        for line in result:
+            assert len(line["data"]) > 0
+            xs = [p["x"] for p in line["data"]]
+            assert xs == sorted(xs)
+            assert all(p["y"] is not None for p in line["data"])
