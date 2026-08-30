@@ -117,3 +117,19 @@ def test_bone_age_constants():
     assert BONE_AGE_WINDOW_DAYS == 30.44
     assert "gp" in VALID_BONE_AGE_STANDARDS
     assert "tw3" in VALID_BONE_AGE_STANDARDS
+
+
+def test_new_references_are_valid():
+    assert "who" in VALID_REFERENCES
+    assert "trisomy-21-aap" in VALID_REFERENCES
+
+
+def test_reference_dropdown_matches_valid_references():
+    """The <select> in the SPA must offer exactly the slugs the server accepts."""
+    import re
+    from pathlib import Path
+
+    html = Path(__file__).resolve().parent.parent.joinpath("templates", "index.html").read_text()
+    select = re.search(r'<select id="reference".*?</select>', html, re.S).group(0)
+    options = set(re.findall(r'<option value="([^"]+)"', select))
+    assert options == VALID_REFERENCES

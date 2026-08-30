@@ -155,6 +155,8 @@ tests/
 | Turner Syndrome | female only | height | 1–20 years | Girls and women with 45,X karyotype |
 | Trisomy 21 | male, female | height, weight, OFC, BMI | 0–20 years | OFC to 18y; BMI to 18.82y |
 | CDC | male, female | height, weight, OFC, BMI | 0–20 years | OFC to 3y; BMI from 2y |
+| WHO | male, female | height, weight, OFC, BMI | 0–19 years | WHO 2006/2007 standards; weight to 10y; OFC to 5y; no preterm data |
+| Trisomy 21 (AAP, US) | male, female | height, weight, OFC, BMI | 0–20 years | Zemel 2015 US charts; height/OFC from 1 month; BMI from 2y |
 
 Unsupported reference / sex / method / age combinations are rejected with HTTP 422 `ERR_011` rather than returning empty or null results.
 

@@ -98,6 +98,8 @@ REFERENCE_NAMES = {
     "turners-syndrome": "Turner Syndrome",
     "trisomy-21": "Trisomy 21",
     "cdc": "CDC (US)",
+    "who": "WHO",
+    "trisomy-21-aap": "Trisomy 21 (AAP, US)",
 }
 
 # Disclaimer text — kept consistent with the README and the in-app banner so
