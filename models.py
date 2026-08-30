@@ -103,6 +103,10 @@ def extract_measurement_result(measurement_dict, observation_value, measurement_
         "value": observation_value,
         "centile": centile,
         "sds": sds,
+        # RCPCH's standard wording, e.g. "This height measurement is between
+        # the 25th and 50th centiles." — kept verbatim to match the Digital
+        # Growth Charts.
+        "centile_band": calc.get("corrected_centile_band"),
     }
 
 

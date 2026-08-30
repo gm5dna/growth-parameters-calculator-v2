@@ -1174,3 +1174,22 @@ class TestProvenance:
         assert prov["engine"] == "rcpchgrowth"
         assert prov["engine_version"] == version("rcpchgrowth")
         assert isinstance(prov["engine_commit"], str)
+
+
+class TestCentileBandWording:
+    def test_each_measurement_carries_centile_band(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2020-01-01",
+            "measurement_date": "2024-01-01",
+            "height": 100.0,
+            "weight": 16.0,
+            "ofc": 50.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        results = response.get_json()["results"]
+        assert results["height"]["centile_band"].startswith("This height measurement is")
+        assert results["weight"]["centile_band"].startswith("This weight measurement is")
+        assert results["ofc"]["centile_band"].startswith("This head circumference measurement is")
+        assert results["bmi"]["centile_band"].startswith("This body mass index measurement is")

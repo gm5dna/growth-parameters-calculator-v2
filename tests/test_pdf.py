@@ -259,3 +259,10 @@ class TestProvenanceFooter:
     def test_no_footer_line_without_provenance(self, sample_results, sample_patient_info):
         text = _pdf_text(GrowthReportPDF(sample_results, sample_patient_info).generate())
         assert "Calculated with" not in text
+
+
+class TestCentileBandInPdf:
+    def test_measurement_table_includes_band_sentence(self, sample_results, sample_patient_info):
+        sample_results["height"]["centile_band"] = "This height measurement is between the 25th and 50th centiles."
+        text = _pdf_text(GrowthReportPDF(sample_results, sample_patient_info).generate())
+        assert "between the 25th and 50th centiles" in text

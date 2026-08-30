@@ -135,3 +135,28 @@ class TestProvenance:
         assert prov["growth_reference"] == "trisomy-21"
         assert prov["calculation_engine"]["name"] == "rcpchgrowth"
         assert prov["calculation_engine"]["version"]
+
+
+class TestCentileBand:
+    def test_extracted_result_carries_rcpch_centile_band(self):
+        result = create_measurement(
+            sex="male",
+            birth_date=date(2020, 1, 1),
+            measurement_date=date(2023, 6, 15),
+            measurement_method="height",
+            observation_value=95.0,
+            reference="uk-who",
+        )
+        extracted = extract_measurement_result(result, 95.0, "height")
+        assert extracted["centile_band"].startswith("This height measurement is")
+        assert "centile" in extracted["centile_band"]
+
+    def test_centile_band_absent_when_library_gives_none(self):
+        fake_dict = {
+            "measurement_calculated_values": {
+                "corrected_centile": 50.0,
+                "corrected_sds": 0.0,
+                "corrected_centile_band": None,
+            }
+        }
+        assert extract_measurement_result(fake_dict, 95.0, "height")["centile_band"] is None
