@@ -27,6 +27,19 @@ describe('formatResultsAsText', () => {
     expect(text).toContain('Age: 3.00 years');
   });
 
+  test('ends with provenance line when present', () => {
+    const results = Object.assign({}, baseResults, {
+      provenance: { growth_reference: 'uk-who', engine: 'rcpchgrowth', engine_version: '9.9.9' },
+    });
+    const text = formatResultsAsText(results, baseInfo);
+    expect(text.trim().split('\n').pop()).toBe('Calculated with rcpchgrowth 9.9.9 (UK-WHO)');
+  });
+
+  test('omits provenance line when absent', () => {
+    const text = formatResultsAsText(baseResults, baseInfo);
+    expect(text).not.toContain('Calculated with');
+  });
+
   test('includes reference', () => {
     const text = formatResultsAsText(baseResults, baseInfo);
     expect(text).toContain('Reference: UK-WHO');

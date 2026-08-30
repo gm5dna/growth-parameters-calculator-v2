@@ -1154,3 +1154,23 @@ class TestRateLimitStorageWarning:
         with caplog.at_level("WARNING"):
             app_module._warn_if_ratelimit_storage_unsafe()
         assert not any("per-worker" in r.message for r in caplog.records)
+
+
+class TestProvenance:
+    def test_calculate_reports_engine_provenance(self, client):
+        from importlib.metadata import version
+
+        payload = {
+            "sex": "male",
+            "birth_date": "2020-01-01",
+            "measurement_date": "2024-01-01",
+            "reference": "trisomy-21",
+            "height": 95.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200
+        prov = response.get_json()["results"]["provenance"]
+        assert prov["growth_reference"] == "trisomy-21"
+        assert prov["engine"] == "rcpchgrowth"
+        assert prov["engine_version"] == version("rcpchgrowth")
+        assert isinstance(prov["engine_commit"], str)
