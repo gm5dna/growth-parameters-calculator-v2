@@ -48,6 +48,11 @@ describe('formatResultsAsText', () => {
     expect(text).toContain('  SDS: -0.67\n  This height measurement is on or near the 25th centile.');
   });
 
+  test('uses a readable reference name for hyphenated slugs', () => {
+    const text = formatResultsAsText(baseResults, { sex: 'male', reference: 'trisomy-21-aap' });
+    expect(text).toContain('Reference: Trisomy 21 (AAP, US)');
+  });
+
   test('includes reference', () => {
     const text = formatResultsAsText(baseResults, baseInfo);
     expect(text).toContain('Reference: UK-WHO');

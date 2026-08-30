@@ -21,6 +21,8 @@ class TestChartDataWorkflows:
             ("turners-syndrome", "height", "female"),
             ("trisomy-21", "height", "male"),
             ("cdc", "weight", "male"),
+            ("who", "height", "female"),
+            ("trisomy-21-aap", "weight", "male"),
         ]
         for ref, method, sex in cases:
             payload = {"reference": ref, "measurement_method": method, "sex": sex}

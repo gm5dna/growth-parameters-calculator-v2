@@ -1193,3 +1193,56 @@ class TestCentileBandWording:
         assert results["weight"]["centile_band"].startswith("This weight measurement is")
         assert results["ofc"]["centile_band"].startswith("This head circumference measurement is")
         assert results["bmi"]["centile_band"].startswith("This body mass index measurement is")
+
+
+class TestWhoAndTrisomy21AapEndpoints:
+    def test_who_calculates_all_methods_for_a_toddler(self, client):
+        payload = {
+            "sex": "female",
+            "birth_date": "2021-06-01",
+            "measurement_date": "2024-06-01",
+            "reference": "who",
+            "height": 95.0,
+            "weight": 14.0,
+            "ofc": 49.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200, response.get_json()
+        results = response.get_json()["results"]
+        for key in ("height", "weight", "ofc", "bmi"):
+            assert isinstance(results[key]["sds"], float), key
+        assert results["provenance"]["growth_reference"] == "who"
+
+    def test_who_weight_over_10y_rejected(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2012-01-01",
+            "measurement_date": "2024-06-01",
+            "reference": "who",
+            "weight": 40.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 422
+        assert response.get_json()["error_code"] == "ERR_011"
+
+    def test_trisomy_21_aap_calculates(self, client):
+        payload = {
+            "sex": "male",
+            "birth_date": "2016-01-01",
+            "measurement_date": "2024-06-01",
+            "reference": "trisomy-21-aap",
+            "height": 115.0,
+            "weight": 25.0,
+            "ofc": 50.0,
+        }
+        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        assert response.status_code == 200, response.get_json()
+        results = response.get_json()["results"]
+        for key in ("height", "weight", "ofc", "bmi"):
+            assert isinstance(results[key]["sds"], float), key
+
+    def test_chart_data_for_new_references(self, client):
+        for ref, method in (("who", "ofc"), ("trisomy-21-aap", "bmi")):
+            payload = {"reference": ref, "measurement_method": method, "sex": "female"}
+            response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+            assert response.status_code == 200, (ref, method)

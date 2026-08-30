@@ -266,3 +266,10 @@ class TestCentileBandInPdf:
         sample_results["height"]["centile_band"] = "This height measurement is between the 25th and 50th centiles."
         text = _pdf_text(GrowthReportPDF(sample_results, sample_patient_info).generate())
         assert "between the 25th and 50th centiles" in text
+
+
+class TestReferenceNames:
+    def test_new_references_have_display_names(self):
+        from pdf_utils import REFERENCE_NAMES
+        assert REFERENCE_NAMES["who"] == "WHO"
+        assert REFERENCE_NAMES["trisomy-21-aap"] == "Trisomy 21 (AAP, US)"
