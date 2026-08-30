@@ -134,6 +134,58 @@ var AGE_RANGES = {
   ],
 };
 
+/**
+ * Upper age limit of the reference data per method, in years. Anything not
+ * listed runs to 20 years. Mirrors rcpchgrowth's reference_data_absent()
+ * rules (and REFERENCE_CAPABILITIES in constants.py).
+ */
+var REFERENCE_MAX_AGE = {
+  'uk-who': { ofc: 18 },
+  'trisomy-21': { ofc: 18, bmi: 18.82 },
+  'cdc': { ofc: 3 },
+  'who': { height: 19, weight: 10, bmi: 19, ofc: 5 },
+};
+var DEFAULT_MAX_AGE = 20;
+
+function formatAgeRangeLabel(min, max) {
+  return min + '\u2013' + max + ' years';
+}
+
+/**
+ * Age-range presets for a chart type, clamped to the reference's data
+ * domain. Presets starting at or beyond the cap are dropped; presets
+ * extending past it are shortened and relabelled (once one clamped preset
+ * reaches the cap, later ones are dropped as redundant slivers). Each entry keeps its
+ * `sourceIndex` into AGE_RANGES so default selection can map across.
+ */
+function getAgeRanges(chartType, reference) {
+  var presets = AGE_RANGES[chartType] || [];
+  var caps = REFERENCE_MAX_AGE[reference] || {};
+  var cap = caps[chartType] || DEFAULT_MAX_AGE;
+  var result = [];
+  presets.forEach(function (preset, index) {
+    if (preset.min >= cap) return;
+    var max = Math.min(preset.max, cap);
+    // Once a kept preset already reaches the cap, further clamped presets
+    // would only be later-starting slivers of the same data (e.g. 8-10y).
+    var capReached = result.some(function (r) { return r.max === cap; });
+    if (max < preset.max && capReached) return;
+    var duplicate = result.some(function (r) { return r.min === preset.min && r.max === max; });
+    if (duplicate) return;
+    result.push({
+      label: max === preset.max ? preset.label : formatAgeRangeLabel(preset.min, max),
+      min: preset.min,
+      max: max,
+      sourceIndex: index,
+    });
+  });
+  return result;
+}
+
+function currentReference() {
+  return (appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
+}
+
 /* ------------------------------------------------------------------ */
 /*  Current chart type and age range tracking                         */
 /* ------------------------------------------------------------------ */
@@ -174,6 +226,19 @@ function getDefaultAgeRange(chartType, ageYears, hasParentalHeights) {
     default:
       return 0;
   }
+}
+
+/**
+ * Index into a clamped range list (from getAgeRanges) for the intelligent
+ * default; falls back to the last available preset when the preferred one
+ * was dropped by the reference cap.
+ */
+function getDefaultAgeRangeIndex(chartType, ageYears, hasParentalHeights, ranges) {
+  var wanted = getDefaultAgeRange(chartType, ageYears, hasParentalHeights);
+  for (var i = 0; i < ranges.length; i++) {
+    if (ranges[i].sourceIndex === wanted) return i;
+  }
+  return Math.max(ranges.length - 1, 0);
 }
 
 /* ------------------------------------------------------------------ */
@@ -247,10 +312,10 @@ function renderAgeRangeSelector(chartType) {
   if (!container) return;
   container.innerHTML = '';
 
-  var ranges = AGE_RANGES[chartType] || [];
+  var ranges = getAgeRanges(chartType, currentReference());
   var ageYears = (appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
   var hasParentalHeights = (appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
-  var defaultIndex = getDefaultAgeRange(chartType, ageYears, hasParentalHeights);
+  var defaultIndex = getDefaultAgeRangeIndex(chartType, ageYears, hasParentalHeights, ranges);
   currentAgeRangeIndex = defaultIndex;
 
   ranges.forEach(function(range, index) {
@@ -283,9 +348,9 @@ function renderAgeRangeSelector(chartType) {
  */
 export async function loadAndRenderChart() {
   var requestId = ++activeChartRequestId;
-  var reference = (appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
+  var reference = currentReference();
   var sex = (appState.lastPayload) ? appState.lastPayload.sex : 'male';
-  var ranges = AGE_RANGES[currentChartType] || [];
+  var ranges = getAgeRanges(currentChartType, reference);
   var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
   var chartTypeForRequest = currentChartType;
 
@@ -971,9 +1036,9 @@ export function downloadChart() {
     var savedTheme = document.documentElement.getAttribute('data-theme');
     document.documentElement.setAttribute('data-theme', 'light');
 
-    var ranges = AGE_RANGES[currentChartType] || [];
+    var ranges = getAgeRanges(currentChartType, currentReference());
     var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
-    var cacheKey = (appState.lastPayload ? appState.lastPayload.reference || 'uk-who' : 'uk-who') + '|' + currentChartType + '|' + (appState.lastPayload ? appState.lastPayload.sex : 'male');
+    var cacheKey = currentReference() + '|' + currentChartType + '|' + (appState.lastPayload ? appState.lastPayload.sex : 'male');
     var centiles = chartDataCache[cacheKey];
     if (centiles) renderChart(centiles, ageRange, currentChartType);
 
@@ -1030,10 +1095,10 @@ export async function captureChartImages() {
         var type = types[i];
         try {
             var centiles = await fetchChartData(reference, type, sex);
-            var ranges = AGE_RANGES[type] || [];
+            var ranges = getAgeRanges(type, reference);
             var ageYears = (appState.lastResults) ? appState.lastResults.age_years || 0 : 0;
             var hasParentalHeights = (appState.lastResults) ? !!appState.lastResults.mid_parental_height : false;
-            var defaultIdx = getDefaultAgeRange(type, ageYears, hasParentalHeights);
+            var defaultIdx = getDefaultAgeRangeIndex(type, ageYears, hasParentalHeights, ranges);
             var ageRange = ranges[defaultIdx] || ranges[0];
 
             renderChart(centiles, ageRange, type);
@@ -1092,6 +1157,7 @@ export function initCharts() {
 }
 
 export const __chartTestHooks = {
+  getAgeRangesForTest: getAgeRanges,
   getPreviousMeasurementPointsForTest: getPreviousMeasurementPoints,
   renderAgeRangeSelectorForTest: renderAgeRangeSelector,
   syncChartTabsForTest: syncChartTabs,
