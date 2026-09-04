@@ -120,7 +120,10 @@ class TestExtractMeasurementResult:
 
 
 class TestProvenance:
-    """rcpchgrowth >= 4.6 stamps every result with the reference and engine used."""
+    """rcpchgrowth >= 4.6 stamps every result with the reference and engine used.
+
+    rcpchgrowth 4.6.2 renamed the engine to ``rcpch/rcpchgrowth-python``.
+    """
 
     def test_measurement_carries_provenance(self):
         result = create_measurement(
@@ -133,7 +136,7 @@ class TestProvenance:
         )
         prov = result["provenance"]
         assert prov["growth_reference"] == "trisomy-21"
-        assert prov["calculation_engine"]["name"] == "rcpchgrowth"
+        assert prov["calculation_engine"]["name"] == "rcpch/rcpchgrowth-python"
         assert prov["calculation_engine"]["version"]
 
 
