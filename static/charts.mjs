@@ -476,6 +476,31 @@ function filterDataToRange(centiles, minAge, maxAge) {
   });
 }
 
+/**
+ * Split a centile line into runs at reference joins. The backend keeps
+ * both boundary points where two reference segments meet (e.g. UK-WHO
+ * infant length and child height at exactly 2 y), so a repeated x marks
+ * a join. Each run is drawn as its own dataset so Chart.js does not fit
+ * a bezier through the step.
+ *
+ * @param {Array} data - Centile data points, sorted by x.
+ * @returns {Array}     - Array of non-empty point-array runs.
+ */
+function splitAtReferenceJoins(data) {
+  var runs = [];
+  var currentRun = [];
+  for (var i = 0; i < data.length; i++) {
+    var point = data[i];
+    if (currentRun.length > 0 && point.x === currentRun[currentRun.length - 1].x) {
+      runs.push(currentRun);
+      currentRun = [];
+    }
+    currentRun.push(point);
+  }
+  if (currentRun.length > 0) runs.push(currentRun);
+  return runs;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Chart destruction                                                 */
 /* ------------------------------------------------------------------ */
@@ -720,24 +745,34 @@ function getBoneAgePoint() {
  * @returns {Array}          - Chart.js dataset objects.
  */
 function buildCentileDatasets(centiles, colors) {
-  return centiles.map(function (centile) {
+  var datasets = [];
+  centiles.forEach(function (centile) {
+    var runs = splitAtReferenceJoins(centile.data);
+    if (runs.length === 0) return;
+
     var style = CENTILE_STYLES[centile.centile] || { width: 1, opacity: 0.3 };
     var borderColor =
       centile.centile === 50
         ? colors.median
         : 'rgba(' + hexToRgb(colors.centileLine) + ', ' + style.opacity + ')';
 
-    return {
-      label: 'Centile ' + centile.centile,
-      data: centile.data,
-      borderColor: borderColor,
-      borderWidth: style.width,
-      fill: false,
-      tension: 0.4,
-      pointRadius: 0,
-      centileLabel: String(centile.centile),
-    };
+    runs.forEach(function (run, index) {
+      var dataset = {
+        label: 'Centile ' + centile.centile,
+        data: run,
+        borderColor: borderColor,
+        borderWidth: style.width,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+      };
+      // Only the last run reaches the true line end, so only it carries the
+      // label — otherwise centileLabelPlugin would draw one per run.
+      if (index === runs.length - 1) dataset.centileLabel = String(centile.centile);
+      datasets.push(dataset);
+    });
   });
+  return datasets;
 }
 
 /**
@@ -1167,4 +1202,6 @@ export const __chartTestHooks = {
     activeChartRequestId = 0;
     chartDataCache = {};
   },
+  splitAtReferenceJoinsForTest: splitAtReferenceJoins,
+  buildCentileDatasetsForTest: buildCentileDatasets,
 };
