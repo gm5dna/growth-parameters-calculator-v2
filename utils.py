@@ -2,9 +2,15 @@
 
 Chart data helper added in Phase 2.
 """
+import contextlib
+import io
+import logging
+
 from rcpchgrowth import create_chart, mid_parental_height
 
 from validation import validate_parent_height
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_mid_parental_height(maternal_height, paternal_height, sex):
@@ -52,12 +58,30 @@ def get_chart_data(reference, measurement_method, sex):
     Returns:
         list of dicts: [{centile, sds, data: [{x, y}]}, ...] — 9 centile lines
     """
-    raw = create_chart(
-        reference=reference,
-        centile_format="cole-nine-centiles",
-        measurement_method=measurement_method,
-        sex=sex,
-    )
+    # rcpchgrowth's chart_functions.py uses bare print() for diagnostics (e.g.
+    # "There is no UK90 reference data below 23 weeks gestation") on every
+    # UK-WHO chart. redirect_stdout swaps sys.stdout process-wide for the
+    # duration of the call, which is safe under gunicorn sync workers (one
+    # request per worker at a time), and stops that noise reaching gunicorn's
+    # own stdout.
+    captured_stdout = io.StringIO()
+    with contextlib.redirect_stdout(captured_stdout):
+        raw = create_chart(
+            reference=reference,
+            centile_format="cole-nine-centiles",
+            measurement_method=measurement_method,
+            sex=sex,
+        )
+    captured_text = captured_stdout.getvalue().strip()
+    if captured_text:
+        logger.debug(
+            "rcpchgrowth create_chart emitted diagnostics for "
+            "reference=%s, measurement_method=%s, sex=%s: %s",
+            reference,
+            measurement_method,
+            sex,
+            captured_text,
+        )
 
     # Collect centile lines from all segments, keyed by centile value
     merged = {}  # centile_value -> {centile, sds, data: []}
@@ -92,6 +116,12 @@ def get_chart_data(reference, measurement_method, sex):
     result = []
     for centile_val in sorted(merged.keys()):
         entry = merged[centile_val]
+        # Python's sort is stable, so at reference joins (x=2.0 UK-WHO/WHO
+        # infant->child, x=4.0 WHO->UK90, x=5.0 WHO) the two points sharing an
+        # x keep the segment order they were appended in above (younger
+        # segment first). The frontend (static/charts.mjs,
+        # splitAtReferenceJoins) relies on that ordering to break the line at
+        # the join, so do not change this sort or dedupe these points.
         entry["data"].sort(key=lambda p: p["x"])
         result.append(entry)
 

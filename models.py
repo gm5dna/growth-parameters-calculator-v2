@@ -110,6 +110,14 @@ def extract_measurement_result(measurement_dict, observation_value, measurement_
     }
 
 
+def installed_engine_version() -> str:
+    """Return the installed rcpchgrowth package version, or "unknown" if absent."""
+    try:
+        return _package_version("rcpchgrowth")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def build_provenance(reference, measurement_dict=None):
     """Describe which growth reference and rcpchgrowth build produced a result.
 
@@ -118,13 +126,9 @@ def build_provenance(reference, measurement_dict=None):
     package version so the block is present even when no measurement was made.
     """
     engine = ((measurement_dict or {}).get("provenance") or {}).get("calculation_engine") or {}
-    try:
-        installed = _package_version("rcpchgrowth")
-    except PackageNotFoundError:
-        installed = "unknown"
     return {
         "growth_reference": reference,
         "engine": "rcpchgrowth",
-        "engine_version": engine.get("version") or installed,
+        "engine_version": engine.get("version") or installed_engine_version(),
         "engine_commit": engine.get("commit") or "unknown",
     }
