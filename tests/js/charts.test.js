@@ -196,3 +196,97 @@ describe('previous measurement points carry own centile/SDS (review #5)', () => 
     expect(points[0].correctedX).toBe(2.8);
   });
 });
+
+describe('centile lines split at reference joins', () => {
+  const colors = { median: '#000000', centileLine: '#336699' };
+
+  test('splitAtReferenceJoins returns one run for data with unique x', () => {
+    const data = [{ x: 0, y: 50 }, { x: 1, y: 75 }, { x: 2, y: 87 }];
+    const runs = __chartTestHooks.splitAtReferenceJoinsForTest(data);
+    expect(runs).toEqual([data]);
+  });
+
+  test('splitAtReferenceJoins returns [] for empty input', () => {
+    expect(__chartTestHooks.splitAtReferenceJoinsForTest([])).toEqual([]);
+  });
+
+  test('splitAtReferenceJoins splits into two runs at a single join', () => {
+    const data = [
+      { x: 1.9167, y: 86.9 },
+      { x: 2, y: 87.8 },
+      { x: 2, y: 87.13 },
+      { x: 2.0833, y: 87.97 },
+    ];
+    const runs = __chartTestHooks.splitAtReferenceJoinsForTest(data);
+    expect(runs).toHaveLength(2);
+    expect(runs[0].map((p) => p.x)).toEqual([1.9167, 2]);
+    expect(runs[0][runs[0].length - 1].y).toBe(87.8);
+    expect(runs[1].map((p) => p.x)).toEqual([2, 2.0833]);
+    expect(runs[1][0].y).toBe(87.13);
+  });
+
+  test('splitAtReferenceJoins returns three runs when joins fall at both 2 and 4', () => {
+    const data = [
+      { x: 1.9167, y: 86.9 },
+      { x: 2, y: 87.8 },
+      { x: 2, y: 87.13 },
+      { x: 3.5, y: 96.4 },
+      { x: 4, y: 100.1 },
+      { x: 4, y: 99.4 },
+      { x: 4.5, y: 101.9 },
+    ];
+    const runs = __chartTestHooks.splitAtReferenceJoinsForTest(data);
+    expect(runs).toHaveLength(3);
+    expect(runs[0].map((p) => p.x)).toEqual([1.9167, 2]);
+    expect(runs[1].map((p) => p.x)).toEqual([2, 3.5, 4]);
+    expect(runs[2].map((p) => p.x)).toEqual([4, 4.5]);
+  });
+
+  test('buildCentileDatasets emits one dataset for a centile with no joins', () => {
+    const centiles = [
+      { centile: 50, sds: 0, data: [{ x: 0, y: 50 }, { x: 1, y: 75 }] },
+    ];
+    const datasets = __chartTestHooks.buildCentileDatasetsForTest(centiles, colors);
+    expect(datasets).toHaveLength(1);
+    expect(datasets[0].centileLabel).toBe('50');
+  });
+
+  test('buildCentileDatasets emits two datasets for a centile with one join, label on the last only', () => {
+    const centiles = [
+      {
+        centile: 50,
+        sds: 0,
+        data: [{ x: 1.9167, y: 86.9 }, { x: 2, y: 87.8 }, { x: 2, y: 87.13 }, { x: 2.0833, y: 87.97 }],
+      },
+    ];
+    const datasets = __chartTestHooks.buildCentileDatasetsForTest(centiles, colors);
+    expect(datasets).toHaveLength(2);
+    expect(datasets[0].centileLabel).toBeUndefined();
+    expect(datasets[1].centileLabel).toBe('50');
+    expect(datasets[0].borderColor).toBe(datasets[1].borderColor);
+    expect(datasets[0].borderWidth).toBe(datasets[1].borderWidth);
+    expect(datasets[0].tension).toBe(datasets[1].tension);
+    expect(datasets[0].label).toBe(datasets[1].label);
+  });
+
+  test('buildCentileDatasets emits 27 datasets with 9 labels for nine centiles each with two joins', () => {
+    const centileNumbers = [0.4, 2, 9, 25, 50, 75, 91, 98, 99.6];
+    const centiles = centileNumbers.map((n) => ({
+      centile: n,
+      sds: 0,
+      data: [
+        { x: 1.9167, y: 86.9 },
+        { x: 2, y: 87.8 },
+        { x: 2, y: 87.13 },
+        { x: 3.9167, y: 99.9 },
+        { x: 4, y: 100.1 },
+        { x: 4, y: 99.4 },
+        { x: 4.0833, y: 100.3 },
+      ],
+    }));
+    const datasets = __chartTestHooks.buildCentileDatasetsForTest(centiles, colors);
+    expect(datasets).toHaveLength(27);
+    const labelled = datasets.filter((d) => d.centileLabel !== undefined);
+    expect(labelled).toHaveLength(9);
+  });
+});

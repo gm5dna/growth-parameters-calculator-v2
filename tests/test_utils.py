@@ -1,4 +1,6 @@
 """Tests for utils module."""
+import logging
+
 import pytest
 
 from utils import (
@@ -100,6 +102,44 @@ class TestGetChartData:
         for line in result:
             x_values = [p["x"] for p in line["data"]]
             assert x_values == sorted(x_values)
+
+    @pytest.mark.parametrize("reference", ["uk-who", "who"])
+    def test_uk_who_infant_and_child_both_include_age_two(self, reference):
+        # rcpchgrowth 4.6.2 restores the age-two join point in UK-WHO/WHO
+        # create_chart output: the infant segment now ends at x=2.0 and the
+        # child segment starts at x=2.0 (previously a 1.9167->2.0833 gap).
+        result = get_chart_data(reference, "height", "male")
+        median = [line for line in result if line["centile"] == 50][0]
+        points_at_two = [p for p in median["data"] if p["x"] == 2.0]
+        assert len(points_at_two) == 2
+        # Length (lying down, infant segment) exceeds standing height
+        # (child segment) at the same age, so the first point (younger
+        # segment, per the stable sort) has the larger y value.
+        assert points_at_two[0]["y"] > points_at_two[1]["y"]
+
+        if reference == "uk-who":
+            # Documents the existing WHO->UK90 join at x=4.0.
+            points_at_four = [p for p in median["data"] if p["x"] == 4.0]
+            assert len(points_at_four) == 2
+
+    def test_no_gap_wider_than_a_month_below_four_years(self):
+        # This would have failed on rcpchgrowth 4.6.1, where the missing
+        # age-two join point left a gap of 1.9167->2.0833 (0.1666y).
+        result = get_chart_data("uk-who", "height", "male")
+        median = [line for line in result if line["centile"] == 50][0]
+        x_values = sorted(p["x"] for p in median["data"] if p["x"] <= 4)
+        gaps = [b - a for a, b in zip(x_values, x_values[1:], strict=False)]
+        assert max(gaps) <= 0.09  # a month is ~0.0833y
+
+    def test_chart_generation_emits_nothing_to_stdout(self, capsys, caplog):
+        with caplog.at_level(logging.DEBUG, logger="utils"):
+            get_chart_data("uk-who", "height", "male")
+        assert capsys.readouterr().out == ""
+        # rcpchgrowth prints diagnostics (e.g. "There is no UK90 reference
+        # data below 23 weeks gestation") for uk-who height; confirm the
+        # captured noise is logged instead of reaching stdout.
+        debug_records = [r for r in caplog.records if r.name == "utils"]
+        assert any("uk-who" in r.getMessage() for r in debug_records)
 
     def test_turner_syndrome(self):
         result = get_chart_data("turners-syndrome", "height", "female")

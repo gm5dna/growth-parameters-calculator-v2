@@ -1,4 +1,5 @@
 """Tests for Flask endpoints."""
+import importlib.metadata
 import json
 
 
@@ -8,6 +9,7 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.get_json()
         assert data["status"] == "healthy"
+        assert data["rcpchgrowth"] == importlib.metadata.version("rcpchgrowth")
 
 
 class TestCalculateEndpoint:

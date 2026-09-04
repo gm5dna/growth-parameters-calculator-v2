@@ -35,6 +35,7 @@ from models import (
     build_provenance,
     create_measurement,
     extract_measurement_result,
+    installed_engine_version,
     validate_measurement_sds,
 )
 from pdf_utils import GrowthReportPDF
@@ -199,7 +200,7 @@ def index():
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "healthy"}), 200
+    return jsonify({"status": "healthy", "rcpchgrowth": installed_engine_version()}), 200
 
 
 def perform_calculation(data):
