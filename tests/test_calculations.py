@@ -150,26 +150,6 @@ class TestCalculateHeightVelocity:
 
 
 class TestCalculateGhDose:
-    def test_basic_dose_calculation(self):
-        result = calculate_gh_dose(0.6, 0.58, 20.0)
-        assert result["mg_per_day"] == 0.6
-        assert abs(result["mg_per_week"] - 4.2) < 0.01
-        assert "mg_m2_week" in result
-        assert "mcg_kg_day" in result
-
-    def test_mg_m2_week(self):
-        result = calculate_gh_dose(0.6, 0.58, 20.0)
-        expected = (0.6 * 7) / 0.58
-        assert abs(result["mg_m2_week"] - round(expected, 1)) < 0.2
-
-    def test_mcg_kg_day(self):
-        result = calculate_gh_dose(0.6, None, 20.0)
-        assert abs(result["mcg_kg_day"] - 30.0) < 0.1
-
-    def test_no_bsa_omits_mg_m2(self):
-        result = calculate_gh_dose(0.6, None, 20.0)
-        assert result["mg_m2_week"] is None
-
     def test_initial_dose_from_bsa(self):
-        result = calculate_gh_dose(None, 0.58, 20.0)
+        result = calculate_gh_dose(0.58)
         assert result["initial_daily_dose"] == 0.6

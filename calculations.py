@@ -132,34 +132,6 @@ def calculate_height_velocity(current_height, previous_height, interval_days):
     }
 
 
-def calculate_gh_dose(daily_dose_mg, bsa, weight_kg):
-    """Calculate GH dose in multiple formats.
-
-    If daily_dose_mg is None, calculates initial dose from standard (7 mg/m2/week).
-    """
-    result = {
-        "mg_per_day": None,
-        "mg_per_week": None,
-        "mg_m2_week": None,
-        "mcg_kg_day": None,
-        "initial_daily_dose": None,
-    }
-
-    if daily_dose_mg is None and bsa is not None:
-        initial = (GH_STANDARD_DOSE_MG_M2_WEEK * bsa) / 7
-        result["initial_daily_dose"] = round(initial, 1)
-        return result
-
-    if daily_dose_mg is None:
-        return result
-
-    result["mg_per_day"] = daily_dose_mg
-    result["mg_per_week"] = round(daily_dose_mg * 7, 2)
-
-    if bsa is not None:
-        result["mg_m2_week"] = round((daily_dose_mg * 7) / bsa, 1)
-
-    if weight_kg is not None:
-        result["mcg_kg_day"] = round((daily_dose_mg * 1000) / weight_kg, 1)
-
-    return result
+def calculate_gh_dose(bsa):
+    """Calculate the initial GH daily dose from the standard (7 mg/m2/week)."""
+    return {"initial_daily_dose": round((GH_STANDARD_DOSE_MG_M2_WEEK * bsa) / 7, 1)}
