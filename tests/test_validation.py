@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 
 from validation import (
+    PARENT_HEIGHT_LIMITS,
     ValidationError,
     validate_at_least_one_measurement,
     validate_bone_age,
@@ -234,6 +235,16 @@ class TestNonFiniteNumbers:
 
 
 class TestValidateParentHeight:
+    def test_limits_derived_from_rcpchgrowth(self):
+        # UK-WHO adult height at -/+8 SDS, rounded inwards. A change here means
+        # the library's reference data or MPH limits moved — check before accepting.
+        assert PARENT_HEIGHT_LIMITS == {"Maternal": (115.4, 211.9), "Paternal": (121.6, 233.0)}
+
+    def test_limits_are_sex_specific(self):
+        assert validate_parent_height(233.0, "Paternal") == 233.0
+        with pytest.raises(ValidationError):
+            validate_parent_height(233.0, "Maternal")
+
     """Cases unique to validate_parent_height, not covered by the shared shape."""
 
     def test_empty_string_returns_none(self):
