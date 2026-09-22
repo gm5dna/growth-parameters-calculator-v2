@@ -4,7 +4,6 @@
 # MAX_AGE_YEARS is the absolute request cap — not a reference age range.
 # Each growth reference declares its own supported age span via the
 # REFERENCE_CAPABILITIES matrix below.
-MIN_AGE_YEARS = 0.0
 MAX_AGE_YEARS = 25.0
 
 # SDS thresholds
@@ -65,14 +64,6 @@ CBNF_BSA_TABLE = [
 
 # Growth hormone dosing
 GH_STANDARD_DOSE_MG_M2_WEEK = 7.0
-GH_PEN_DEVICES = [
-    {"id": "norditropin-5",  "label": "Norditropin FlexPro 5 mg",  "step": 0.025, "min": 0.025, "max": 2.0},
-    {"id": "norditropin-10", "label": "Norditropin FlexPro 10 mg", "step": 0.05,  "min": 0.05,  "max": 4.0},
-    {"id": "norditropin-15", "label": "Norditropin FlexPro 15 mg", "step": 0.1,   "min": 0.1,   "max": 8.0},
-    {"id": "surepal-5",      "label": "Omnitrope SurePal 5",       "step": 0.1,   "min": 0.1,   "max": 2.4},
-    {"id": "surepal-10",     "label": "Omnitrope SurePal 10",      "step": 0.1,   "min": 0.1,   "max": 4.8},
-    {"id": "surepal-15",     "label": "Omnitrope SurePal 15",      "step": 0.1,   "min": 0.1,   "max": 7.2},
-]
 
 # Height velocity
 VELOCITY_MIN_INTERVAL_DAYS = 122  # approximately 4 months

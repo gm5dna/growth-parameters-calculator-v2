@@ -1,7 +1,6 @@
 """Flask application — routes and orchestration."""
 import logging
 import os
-import re
 from datetime import datetime as dt
 from datetime import timedelta
 
@@ -83,17 +82,13 @@ limiter = Limiter(
 def _configured_worker_count():
     """Best-effort read of the Gunicorn worker count from the environment.
 
-    Gunicorn honours WEB_CONCURRENCY and the --workers flag (surfaced via
-    GUNICORN_CMD_ARGS). We only need to know whether it is >1 so we can warn
-    that in-memory rate-limit state is not shared across workers.
+    Gunicorn honours WEB_CONCURRENCY. We only need to know whether it is >1
+    so we can warn that in-memory rate-limit state is not shared across
+    workers.
     """
     web_concurrency = os.environ.get("WEB_CONCURRENCY")
     if web_concurrency and web_concurrency.isdigit():
         return int(web_concurrency)
-    cmd_args = os.environ.get("GUNICORN_CMD_ARGS", "")
-    match = re.search(r"--workers[= ](\d+)", cmd_args)
-    if match:
-        return int(match.group(1))
     return None
 
 
@@ -124,13 +119,6 @@ _warn_if_ratelimit_storage_unsafe()
 # that dominates per-request cost, so we apply the same env-tunable cap.
 _CALC_RATE_LIMIT = os.environ.get("CALC_RATE_LIMIT", "30 per minute")
 _PDF_RATE_LIMIT = os.environ.get("PDF_RATE_LIMIT", "10 per minute")
-
-# Allow-list for client-supplied `patient_info` on /export-pdf. Today the PDF
-# renderer reads only the four server-authoritative fields (sex, birth_date,
-# measurement_date, reference), so this set is deliberately empty: the client
-# cannot contribute any patient_info key. Extend this set as new display-only
-# fields are added to the PDF (e.g. {"patient_name", "clinician"}).
-_ALLOWED_CLIENT_PATIENT_INFO_KEYS = frozenset()
 
 # Cap on the number of chart images accepted per export. Each image goes
 # through PIL + ReportLab synchronously; without a count cap an attacker can
@@ -342,7 +330,7 @@ def perform_calculation(data):
             results["bsa"] = {"value": bsa_value, "method": "cBNF"}
 
     if data.get("gh_treatment") and bsa_value is not None:
-        results["gh_dose"] = calculate_gh_dose(None, bsa_value, weight)
+        results["gh_dose"] = calculate_gh_dose(bsa_value)
 
     mph = calculate_mid_parental_height(
         data.get("maternal_height"),
@@ -643,12 +631,8 @@ def export_pdf():
     # rejected cheaply rather than after a full calculation pass.
     # patient_info is optional and display-only. An absent key or explicit null
     # means "not provided" (consistent with how every other optional field is
-    # treated); any other non-dict value is malformed and rejected. Plain
-    # `or {}` was wrong here — it let a falsy [] slip past the type check.
-    client_patient = data.get("patient_info")
-    if client_patient is None:
-        client_patient = {}
-    elif not isinstance(client_patient, dict):
+    # treated); any other non-dict value is malformed and rejected.
+    if data.get("patient_info") is not None and not isinstance(data["patient_info"], dict):
         return jsonify(format_error_response(
             "patient_info must be an object.", ErrorCodes.INVALID_INPUT
         )), 400
@@ -681,13 +665,6 @@ def export_pdf():
         return jsonify(format_error_response(
             "Patient information is required.", ErrorCodes.INVALID_INPUT
         )), 400
-    # Merge only allow-listed display fields from the client — never the four
-    # safety-critical keys (sex, birth_date, measurement_date, reference),
-    # which are always the server-recomputed values.
-    for key in _ALLOWED_CLIENT_PATIENT_INFO_KEYS:
-        if key in client_patient:
-            patient[key] = client_patient[key]
-
     try:
         pdf = GrowthReportPDF(results, patient, chart_images)
         buffer = pdf.generate()
