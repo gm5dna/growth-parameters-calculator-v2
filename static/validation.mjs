@@ -12,7 +12,7 @@ export function validateDate(value) {
   return null;
 }
 
-function validateNumericRange(value, min, max, name) {
+export function validateNumericRange(value, min, max, name) {
   if (value === '' || value === null || value === undefined) return null;
   // Number() rejects strings with trailing garbage like "12abc"; parseFloat
   // would silently accept them. Server-side validation catches this too, but

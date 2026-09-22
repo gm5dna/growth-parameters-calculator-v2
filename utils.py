@@ -8,8 +8,7 @@ import logging
 
 from rcpchgrowth import create_chart, mid_parental_height
 
-from constants import ErrorCodes
-from validation import ValidationError, validate_parent_height
+from validation import validate_parent_height
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +34,11 @@ def calculate_mid_parental_height(maternal_height, paternal_height, sex):
     if maternal_height is None or paternal_height is None:
         return None
 
-    # rcpchgrowth >= 4.6.4 rejects parental heights beyond +/-8 SDS for adult
-    # height with a ValueError; surface its clinician-readable message.
-    try:
-        mph = mid_parental_height(
-            maternal_height=maternal_height,
-            paternal_height=paternal_height,
-            sex=sex,
-        )
-    except ValueError as e:
-        raise ValidationError(str(e), ErrorCodes.INVALID_INPUT) from e
+    mph = mid_parental_height(
+        maternal_height=maternal_height,
+        paternal_height=paternal_height,
+        sex=sex,
+    )
 
     return {
         "mid_parental_height": round(mph, 1),
