@@ -9,6 +9,7 @@ from utils import (
     format_success_response,
     get_chart_data,
 )
+from validation import ValidationError
 
 
 class TestCalculateMidParentalHeight:
@@ -32,6 +33,12 @@ class TestCalculateMidParentalHeight:
 
     def test_returns_none_when_missing_paternal(self):
         assert calculate_mid_parental_height(165.0, None, "male") is None
+
+    @pytest.mark.parametrize("maternal, paternal", [(105.0, 178.0), (165.0, 240.0)])
+    def test_implausible_parent_height_raises_validation_error(self, maternal, paternal):
+        # Inside our 100-250 cm range but beyond rcpchgrowth's +/-8 SDS limit.
+        with pytest.raises(ValidationError, match="SD and considered to be an error"):
+            calculate_mid_parental_height(maternal, paternal, "male")
 
     def test_no_centile_or_sds_returned(self):
         # The sex-neutral parental-mean centile/SDS were removed to avoid being
