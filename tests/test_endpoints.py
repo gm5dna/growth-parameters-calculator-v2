@@ -22,7 +22,7 @@ class TestCalculateEndpoint:
             "height": 96.0,
             "ofc": 50.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
@@ -49,7 +49,7 @@ class TestCalculateEndpoint:
         }
 
         caplog.set_level(logging.INFO, logger="app")
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
 
         assert response.status_code == 200
         messages = [record.getMessage() for record in caplog.records if record.name == "app"]
@@ -58,7 +58,7 @@ class TestCalculateEndpoint:
 
     def test_weight_only(self, client):
         payload = {"sex": "female", "birth_date": "2021-01-01", "measurement_date": "2023-01-01", "weight": 12.0}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
@@ -67,7 +67,7 @@ class TestCalculateEndpoint:
 
     def test_missing_all_measurements(self, client):
         payload = {"sex": "male", "birth_date": "2020-01-01", "measurement_date": "2023-01-01"}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         data = response.get_json()
         assert data["success"] is False
@@ -75,19 +75,19 @@ class TestCalculateEndpoint:
 
     def test_missing_sex(self, client):
         payload = {"birth_date": "2020-01-01", "measurement_date": "2023-01-01", "weight": 14.0}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
 
     def test_invalid_date_format(self, client):
         payload = {"sex": "male", "birth_date": "15/06/2020", "measurement_date": "2023-06-15", "weight": 14.0}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         data = response.get_json()
         assert data["error_code"] == "ERR_001"
 
     def test_with_parental_heights(self, client):
         payload = {"sex": "male", "birth_date": "2020-06-15", "measurement_date": "2023-06-15", "height": 96.0, "maternal_height": 165.0, "paternal_height": 178.0}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         mph = data["results"]["mid_parental_height"]
@@ -95,7 +95,7 @@ class TestCalculateEndpoint:
 
     def test_with_gestation(self, client):
         payload = {"sex": "female", "birth_date": "2022-09-01", "measurement_date": "2023-03-01", "weight": 6.5, "gestation_weeks": 32, "gestation_days": 3}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         results = data["results"]
@@ -104,12 +104,12 @@ class TestCalculateEndpoint:
 
     def test_different_reference(self, client):
         payload = {"sex": "female", "birth_date": "2015-01-01", "measurement_date": "2023-01-01", "height": 120.0, "reference": "turners-syndrome"}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
 
     def test_measurement_before_birth_returns_error(self, client):
         payload = {"sex": "male", "birth_date": "2023-06-15", "measurement_date": "2023-06-14", "weight": 3.5}
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         data = response.get_json()
         assert data["error_code"] == "ERR_002"
@@ -128,8 +128,7 @@ class TestChartDataEndpoint:
         }
         response = client.post(
             "/chart-data",
-            data=json.dumps(payload),
-            content_type="application/json",
+            json=payload,
         )
         assert response.status_code == 200
         data = response.get_json()
@@ -139,7 +138,7 @@ class TestChartDataEndpoint:
 
     def test_chart_data_centile_structure(self, client):
         payload = {"reference": "uk-who", "measurement_method": "weight", "sex": "female"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         data = response.get_json()
         centile_line = data["centiles"][0]
         assert "centile" in centile_line
@@ -152,33 +151,33 @@ class TestChartDataEndpoint:
 
     def test_chart_data_missing_sex(self, client):
         payload = {"reference": "uk-who", "measurement_method": "height"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 400
 
     def test_chart_data_missing_method(self, client):
         payload = {"reference": "uk-who", "sex": "male"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 400
 
     def test_chart_data_invalid_reference(self, client):
         payload = {"reference": "invalid", "measurement_method": "height", "sex": "male"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 400
 
     def test_chart_data_defaults_reference(self, client):
         payload = {"measurement_method": "height", "sex": "male"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 200
 
     def test_chart_data_bmi(self, client):
         payload = {"reference": "uk-who", "measurement_method": "bmi", "sex": "female"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 200
         assert len(response.get_json()["centiles"]) == 9
 
     def test_chart_data_ofc(self, client):
         payload = {"reference": "uk-who", "measurement_method": "ofc", "sex": "male"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 200
 
 
@@ -194,7 +193,7 @@ class TestCalculateWithPreviousMeasurements:
                 {"date": "2022-06-15", "height": 86.0},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
@@ -215,7 +214,7 @@ class TestCalculateWithPreviousMeasurements:
                 {"date": "2022-06-15", "height": 88.0},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         velocity = data["results"]["height_velocity"]
         assert velocity["value"] is not None
@@ -232,7 +231,7 @@ class TestCalculateWithPreviousMeasurements:
                 {"date": "2023-05-15", "height": 95.5},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         velocity = data["results"]["height_velocity"]
         assert velocity["value"] is None
@@ -245,7 +244,7 @@ class TestCalculateWithPreviousMeasurements:
             "measurement_date": "2023-06-15",
             "height": 96.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert "height_velocity" not in data["results"] or data["results"].get("height_velocity") is None
 
@@ -259,7 +258,7 @@ class TestCalculateWithPreviousMeasurements:
                 {"date": "2024-01-01", "height": 100.0},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         data = response.get_json()
         assert data["success"] is False
@@ -277,7 +276,7 @@ class TestCalculateWithBoneAge:
                 {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         ba = data["results"]["bone_age_height"]
@@ -297,7 +296,7 @@ class TestCalculateWithBoneAge:
                 {"date": "2023-01-01", "bone_age": 7.0, "standard": "tw3"},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         ba = data["results"]["bone_age_height"]
         assert ba["within_window"] is False
@@ -312,7 +311,7 @@ class TestCalculateWithBoneAge:
                 {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["results"].get("bone_age_height") is None
 
@@ -323,7 +322,7 @@ class TestCalculateWithBoneAge:
             "measurement_date": "2023-06-15",
             "height": 125.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["results"].get("bone_age_height") is None
 
@@ -337,7 +336,7 @@ class TestCalculateAdvancedResults:
             "weight": 14.5,
             "height": 96.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         bsa = data["results"]["bsa"]
         assert bsa is not None
@@ -351,7 +350,7 @@ class TestCalculateAdvancedResults:
             "measurement_date": "2023-06-15",
             "weight": 14.5,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         bsa = data["results"]["bsa"]
         assert bsa is not None
@@ -364,7 +363,7 @@ class TestCalculateAdvancedResults:
             "measurement_date": "2023-06-15",
             "height": 96.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["results"].get("bsa") is None
 
@@ -376,7 +375,7 @@ class TestCalculateAdvancedResults:
             "weight": 14.5,
             "height": 96.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         bmi = data["results"]["bmi"]
         assert "percentage_median" in bmi
@@ -391,7 +390,7 @@ class TestCalculateAdvancedResults:
             "height": 96.0,
             "gh_treatment": True,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         gh = data["results"].get("gh_dose")
         assert gh is not None
@@ -415,7 +414,7 @@ class TestExportPdfEndpoint:
             "height": 96.0,
             "patient_info": {},
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         assert response.status_code == 200
         assert response.content_type == "application/pdf"
         assert response.data[:5] == b"%PDF-"
@@ -429,11 +428,11 @@ class TestExportPdfEndpoint:
             "measurement_date": "2023-06-15",
             "patient_info": {},
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         assert response.status_code == 400
 
     def test_pdf_missing_required_fields(self, client):
-        response = client.post("/export-pdf", data=json.dumps({}), content_type="application/json")
+        response = client.post("/export-pdf", json={})
         assert response.status_code == 400
 
     def test_pdf_with_chart_images(self, client):
@@ -453,7 +452,7 @@ class TestExportPdfEndpoint:
             "patient_info": {},
             "chart_images": {"height": f"data:image/png;base64,{tiny_png}"},
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         assert response.status_code == 200
         assert response.data[:5] == b"%PDF-"
 
@@ -472,8 +471,7 @@ class TestReferenceCapabilityEnforcement:
     def test_male_turner_syndrome_rejected(self, client):
         response = client.post(
             "/calculate",
-            data=json.dumps(self._payload(sex="male", reference="turners-syndrome")),
-            content_type="application/json",
+            json=self._payload(sex="male", reference="turners-syndrome"),
         )
         assert response.status_code == 422
         data = response.get_json()
@@ -483,8 +481,7 @@ class TestReferenceCapabilityEnforcement:
     def test_turner_weight_rejected(self, client):
         response = client.post(
             "/calculate",
-            data=json.dumps(self._payload(reference="turners-syndrome", weight=14.0, height=None)),
-            content_type="application/json",
+            json=self._payload(reference="turners-syndrome", weight=14.0, height=None),
         )
         assert response.status_code == 422
         assert response.get_json()["error_code"] == "ERR_011"
@@ -492,8 +489,7 @@ class TestReferenceCapabilityEnforcement:
     def test_turner_ofc_rejected(self, client):
         response = client.post(
             "/calculate",
-            data=json.dumps(self._payload(reference="turners-syndrome", ofc=48.0, height=None)),
-            content_type="application/json",
+            json=self._payload(reference="turners-syndrome", ofc=48.0, height=None),
         )
         assert response.status_code == 422
 
@@ -508,7 +504,7 @@ class TestReferenceCapabilityEnforcement:
             "weight": 10.0,
             "height": 78.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         assert "bmi" not in data["results"]
@@ -516,13 +512,13 @@ class TestReferenceCapabilityEnforcement:
 
     def test_chart_data_turner_weight_rejected(self, client):
         payload = {"sex": "female", "reference": "turners-syndrome", "measurement_method": "weight"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 422
         assert response.get_json()["error_code"] == "ERR_011"
 
     def test_chart_data_male_turner_rejected(self, client):
         payload = {"sex": "male", "reference": "turners-syndrome", "measurement_method": "height"}
-        response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/chart-data", json=payload)
         assert response.status_code == 422
 
 
@@ -552,7 +548,7 @@ class TestPreviousMeasurementValidation:
             "height": 96.0,
             "previous_measurements": [{"date": "2022-06-15", "height": 10000}],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         data = response.get_json()
         assert data["error_code"] == "ERR_005"
@@ -565,7 +561,7 @@ class TestPreviousMeasurementValidation:
             "height": 96.0,
             "previous_measurements": [{"date": "2019-01-01", "height": 90.0}],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_002"
 
@@ -588,7 +584,7 @@ class TestBoneAgeValidation:
             "height": 125.0,
             "bone_age_assessments": [{"date": "2023-06-10", "bone_age": 999}],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
@@ -600,7 +596,7 @@ class TestBoneAgeValidation:
             "height": 125.0,
             "bone_age_assessments": [{"date": "2023-06-10", "bone_age": 7.5, "standard": "bogus"}],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
@@ -612,7 +608,7 @@ class TestBoneAgeValidation:
             "height": 125.0,
             "bone_age_assessments": [{"date": "2014-01-01", "bone_age": 7.5, "standard": "gp"}],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_002"
 
@@ -627,7 +623,7 @@ class TestParentalHeightValidation:
             "maternal_height": 10,
             "paternal_height": 180,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
@@ -640,7 +636,7 @@ class TestParentalHeightValidation:
             "maternal_height": 165.0,
             "paternal_height": 180.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         mph = response.get_json()["results"].get("mid_parental_height")
         assert mph is not None
@@ -690,7 +686,7 @@ class TestExportPdfIgnoresClientResults:
                 "weight": {"value": 1.0, "centile": 99.9, "sds": 6.0},
             },
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         assert response.status_code == 200
         # The forged 99y age would otherwise trip the MAX_AGE_YEARS check.
         assert response.data[:5] == b"%PDF-"
@@ -705,7 +701,7 @@ class TestExportPdfIgnoresClientResults:
             # which population the report is generated against.
             "patient_info": {"reference": "turners-syndrome"},
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         # Recalculation uses the top-level reference (unset -> uk-who), so
         # the PDF is built from the server-authoritative data.
         assert response.status_code == 200
@@ -725,7 +721,7 @@ class TestExportPdfIgnoresClientResults:
             "patient_info": {},
             "chart_images": {"height": f"data:image/png;base64,{big_garbage}"},
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         assert response.status_code == 200
         assert response.data[:5] == b"%PDF-"
 
@@ -739,7 +735,7 @@ class TestExportPdfIgnoresClientResults:
             "weight": 14.5,
             "patient_info": [],
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
@@ -752,7 +748,7 @@ class TestExportPdfIgnoresClientResults:
             "patient_info": {},
             "chart_images": {"height": "data:image/jpeg;base64,QUJDRA=="},
         }
-        response = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/export-pdf", json=payload)
         # PDF should still generate; the bad image is simply skipped and
         # recorded on the report's rejected_images list.
         assert response.status_code == 200
@@ -773,7 +769,7 @@ class TestBmiPercentageMedianUsesCorrectedAge:
             "weight": 9.0,
             "height": 78.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         data = response.get_json()
         bmi = data["results"].get("bmi")
@@ -797,7 +793,7 @@ class TestBmiPercentageMedianUsesCorrectedAge:
             "weight": 9.0,
             "height": 78.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         bmi = response.get_json()["results"]["bmi"]
         raw = create_measurement(
@@ -832,8 +828,7 @@ class TestReferenceBoundaryCases:
     def test_turner_0_99y_rejected(self, client):
         r = client.post(
             "/calculate",
-            data=json.dumps(self._payload(0.99, reference="turners-syndrome", height=72.0)),
-            content_type="application/json",
+            json=self._payload(0.99, reference="turners-syndrome", height=72.0),
         )
         assert r.status_code == 422
         assert r.get_json()["error_code"] == "ERR_011"
@@ -841,24 +836,21 @@ class TestReferenceBoundaryCases:
     def test_turner_1_01y_accepted(self, client):
         r = client.post(
             "/calculate",
-            data=json.dumps(self._payload(1.01, reference="turners-syndrome", height=74.0)),
-            content_type="application/json",
+            json=self._payload(1.01, reference="turners-syndrome", height=74.0),
         )
         assert r.status_code == 200
 
     def test_cdc_ofc_2_99y_accepted(self, client):
         r = client.post(
             "/calculate",
-            data=json.dumps(self._payload(2.99, sex="male", reference="cdc", ofc=48.5)),
-            content_type="application/json",
+            json=self._payload(2.99, sex="male", reference="cdc", ofc=48.5),
         )
         assert r.status_code == 200
 
     def test_cdc_ofc_3_01y_rejected(self, client):
         r = client.post(
             "/calculate",
-            data=json.dumps(self._payload(3.01, sex="male", reference="cdc", ofc=49.5)),
-            content_type="application/json",
+            json=self._payload(3.01, sex="male", reference="cdc", ofc=49.5),
         )
         assert r.status_code == 422
         assert r.get_json()["error_code"] == "ERR_011"
@@ -866,16 +858,14 @@ class TestReferenceBoundaryCases:
     def test_trisomy21_ofc_17_99y_accepted(self, client):
         r = client.post(
             "/calculate",
-            data=json.dumps(self._payload(17.99, sex="male", reference="trisomy-21", ofc=55.5)),
-            content_type="application/json",
+            json=self._payload(17.99, sex="male", reference="trisomy-21", ofc=55.5),
         )
         assert r.status_code == 200
 
     def test_trisomy21_ofc_18_01y_rejected(self, client):
         r = client.post(
             "/calculate",
-            data=json.dumps(self._payload(18.01, sex="male", reference="trisomy-21", ofc=55.5)),
-            content_type="application/json",
+            json=self._payload(18.01, sex="male", reference="trisomy-21", ofc=55.5),
         )
         assert r.status_code == 422
         assert r.get_json()["error_code"] == "ERR_011"
@@ -909,7 +899,7 @@ class TestBoneAgeAbsentWhenAllFail:
                 {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
             ],
         }
-        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        r = client.post("/calculate", json=payload)
         assert r.status_code == 200
         data = r.get_json()["results"]
         assert "bone_age_height" not in data
@@ -927,16 +917,14 @@ class TestSecurityHeaders:
         assert "frame-ancestors 'none'" in csp
 
     def test_csp_header_present_on_json_endpoints(self, client):
-        import json as _json
         r = client.post(
             "/calculate",
-            data=_json.dumps({
+            json={
                 "sex": "male",
                 "birth_date": "2020-06-15",
                 "measurement_date": "2023-06-15",
                 "weight": 14.5,
-            }),
-            content_type="application/json",
+            },
         )
         assert "Content-Security-Policy" in r.headers
 
@@ -949,7 +937,6 @@ class TestSecurityHeaders:
 class TestChartImagesCap:
     def test_too_many_chart_images_rejected(self, client):
         import base64 as _b64
-        import json as _json
         from io import BytesIO as _BytesIO
 
         from PIL import Image as _PILImage
@@ -967,7 +954,7 @@ class TestChartImagesCap:
             "patient_info": {},
             "chart_images": chart_images,
         }
-        r = client.post("/export-pdf", data=_json.dumps(payload), content_type="application/json")
+        r = client.post("/export-pdf", json=payload)
         assert r.status_code == 400
         assert r.get_json()["error_code"] == "ERR_010"
 
@@ -980,7 +967,6 @@ class TestPatientInfoAllowList:
         This guards against a future PDF field being added without also
         updating the server allow-list.
         """
-        import json as _json
         payload = {
             "sex": "male",
             "birth_date": "2020-06-15",
@@ -992,13 +978,12 @@ class TestPatientInfoAllowList:
                 "clinician": "Dr Forged",
             },
         }
-        r = client.post("/export-pdf", data=_json.dumps(payload), content_type="application/json")
+        r = client.post("/export-pdf", json=payload)
         # Happy path: PDF still generates; the forged fields are simply dropped.
         assert r.status_code == 200
         assert r.data[:5] == b"%PDF-"
 
     def test_non_object_patient_info_rejected(self, client):
-        import json as _json
         payload = {
             "sex": "male",
             "birth_date": "2020-06-15",
@@ -1006,7 +991,7 @@ class TestPatientInfoAllowList:
             "weight": 14.5,
             "patient_info": ["not", "an", "object"],
         }
-        r = client.post("/export-pdf", data=_json.dumps(payload), content_type="application/json")
+        r = client.post("/export-pdf", json=payload)
         assert r.status_code == 400
 
 
@@ -1025,16 +1010,16 @@ class TestCalculateRateLimit:
         except Exception:
             pass
         c = app.test_client()
-        payload = json.dumps({
+        payload = {
             "sex": "male",
             "birth_date": "2020-06-15",
             "measurement_date": "2023-06-15",
             "weight": 14.5,
-        })
+        }
         try:
             last_status = None
             for _ in range(35):
-                r = c.post("/calculate", data=payload, content_type="application/json")
+                r = c.post("/calculate", json=payload)
                 last_status = r.status_code
                 if last_status == 429:
                     break
@@ -1051,7 +1036,7 @@ class TestGestationCorrectionSemantics:
     """Regression tests for corrected-vs-chronological SDS selection (review #1, #2)."""
 
     def _sds(self, client, payload):
-        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        r = client.post("/calculate", json=payload)
         assert r.status_code == 200, r.get_data(as_text=True)
         return r.get_json()["results"]
 
@@ -1092,7 +1077,7 @@ class TestGestationCorrectionSemantics:
         valid preterm reference data; it must not be rejected (review #2)."""
         payload = {"sex": "female", "birth_date": "2023-01-01", "measurement_date": "2023-02-01",
                    "gestation_weeks": 30, "gestation_days": 0, "weight": 2.0, "reference": "uk-who"}
-        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        r = client.post("/calculate", json=payload)
         assert r.status_code == 200, r.get_data(as_text=True)
         assert r.get_json()["results"]["weight"]["sds"] is not None
 
@@ -1109,7 +1094,7 @@ class TestBoneAgeSelection:
                 {"date": "2023-06-10", "bone_age": 7.5},   # close, within window
             ],
         }
-        r = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        r = client.post("/calculate", json=payload)
         assert r.status_code == 200, r.get_data(as_text=True)
         ba = r.get_json()["results"]["bone_age_height"]
         assert ba["bone_age"] == 7.5
@@ -1124,8 +1109,8 @@ class TestBoneAgeSelection:
         }
         a = {"date": "2021-01-01", "bone_age": 5.0}
         b = {"date": "2023-06-10", "bone_age": 7.5}
-        r1 = client.post("/calculate", data=json.dumps(dict(base, bone_age_assessments=[a, b])), content_type="application/json")
-        r2 = client.post("/calculate", data=json.dumps(dict(base, bone_age_assessments=[b, a])), content_type="application/json")
+        r1 = client.post("/calculate", json=dict(base, bone_age_assessments=[a, b]))
+        r2 = client.post("/calculate", json=dict(base, bone_age_assessments=[b, a]))
         assert r1.get_json()["results"]["bone_age_height"]["bone_age"] == 7.5
         assert r2.get_json()["results"]["bone_age_height"]["bone_age"] == 7.5
 
@@ -1169,7 +1154,7 @@ class TestProvenance:
             "reference": "trisomy-21",
             "height": 95.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         prov = response.get_json()["results"]["provenance"]
         assert prov["growth_reference"] == "trisomy-21"
@@ -1188,7 +1173,7 @@ class TestCentileBandWording:
             "weight": 16.0,
             "ofc": 50.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         results = response.get_json()["results"]
         assert results["height"]["centile_band"].startswith("This height measurement is")
@@ -1208,7 +1193,7 @@ class TestWhoAndTrisomy21AapEndpoints:
             "weight": 14.0,
             "ofc": 49.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200, response.get_json()
         results = response.get_json()["results"]
         for key in ("height", "weight", "ofc", "bmi"):
@@ -1223,7 +1208,7 @@ class TestWhoAndTrisomy21AapEndpoints:
             "reference": "who",
             "weight": 40.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 422
         assert response.get_json()["error_code"] == "ERR_011"
 
@@ -1237,7 +1222,7 @@ class TestWhoAndTrisomy21AapEndpoints:
             "weight": 25.0,
             "ofc": 50.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200, response.get_json()
         results = response.get_json()["results"]
         for key in ("height", "weight", "ofc", "bmi"):
@@ -1246,5 +1231,5 @@ class TestWhoAndTrisomy21AapEndpoints:
     def test_chart_data_for_new_references(self, client):
         for ref, method in (("who", "ofc"), ("trisomy-21-aap", "bmi")):
             payload = {"reference": ref, "measurement_method": method, "sex": "female"}
-            response = client.post("/chart-data", data=json.dumps(payload), content_type="application/json")
+            response = client.post("/chart-data", json=payload)
             assert response.status_code == 200, (ref, method)
