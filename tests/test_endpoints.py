@@ -2,6 +2,8 @@
 import importlib.metadata
 import json
 
+from validation import PARENT_HEIGHT_LIMITS
+
 
 class TestHealthEndpoint:
     def test_health_check(self, client):
@@ -402,6 +404,12 @@ class TestIndexEndpoint:
         response = client.get("/")
         assert response.status_code == 200
         assert b"Growth Parameters Calculator" in response.data
+
+    def test_parent_height_inputs_carry_server_limits(self, client):
+        html = client.get("/").get_data(as_text=True)
+        for (low, high) in PARENT_HEIGHT_LIMITS.values():
+            assert f'min="{low}"' in html
+            assert f'max="{high}"' in html
 
 
 class TestExportPdfEndpoint:

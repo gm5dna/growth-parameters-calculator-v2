@@ -10,6 +10,7 @@ import {
   validateDate,
   validateWeight,
   validateHeight,
+  validateNumericRange,
   validateOfc,
   validateSex,
   validateAtLeastOneMeasurement,
@@ -619,6 +620,18 @@ function runClientValidation(payload) {
     showFieldError('ofcError', ofcErr);
     hasError = true;
   }
+
+  // Parental height limits come from the server (rcpchgrowth's +/-8 SDS adult
+  // range) via the inputs' min/max attributes.
+  [['maternalHeight', 'Maternal height'], ['paternalHeight', 'Paternal height']].forEach(function (pair) {
+    const input = document.getElementById(pair[0]);
+    if (!input) return;
+    const err = validateNumericRange(input.value, Number(input.min), Number(input.max), pair[1]);
+    if (err) {
+      showFieldError(pair[0] + 'Error', err);
+      hasError = true;
+    }
+  });
 
   const atLeastOneErr = validateAtLeastOneMeasurement(
     document.getElementById('weight').value,

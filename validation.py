@@ -2,21 +2,22 @@
 import math
 from datetime import date, datetime
 
+from rcpchgrowth import measurement_from_sds
+
 from constants import (
     DEFAULT_REFERENCE,
     MAX_BONE_AGE_YEARS,
     MAX_GESTATION_WEEKS,
     MAX_HEIGHT_CM,
     MAX_OFC_CM,
-    MAX_PARENT_HEIGHT_CM,
     MAX_WEIGHT_KG,
     MIN_BONE_AGE_YEARS,
     MIN_GESTATION_WEEKS,
     MIN_HEIGHT_CM,
     MIN_OFC_CM,
-    MIN_PARENT_HEIGHT_CM,
     MIN_WEIGHT_KG,
     REFERENCE_CAPABILITIES,
+    SDS_HARD_LIMIT,
     VALID_BONE_AGE_STANDARDS,
     VALID_REFERENCES,
     VALID_SEXES,
@@ -204,14 +205,40 @@ def validate_at_least_one_measurement(weight=None, height=None, ofc=None):
         )
 
 
+def _adult_height_limits(sex):
+    """Adult (UK-WHO, age 20) heights at -/+SDS_HARD_LIMIT, rounded inwards to 0.1 cm.
+
+    This is the range rcpchgrowth's mid_parental_height() accepts; outside it
+    the library raises. Deriving it from the library keeps the two in step.
+    """
+    low, high = (
+        measurement_from_sds(
+            reference="uk-who",
+            measurement_method="height",
+            requested_sds=sds,
+            sex=sex,
+            age=20.0,
+        )
+        for sds in (-SDS_HARD_LIMIT, SDS_HARD_LIMIT)
+    )
+    return math.ceil(low * 10) / 10, math.floor(high * 10) / 10
+
+
+PARENT_HEIGHT_LIMITS = {
+    "Maternal": _adult_height_limits("female"),
+    "Paternal": _adult_height_limits("male"),
+}
+
+
 def validate_parent_height(value, parent_label):
     """Validate a parental height in cm. Returns float or None."""
     if value is None or value == "":
         return None
+    min_cm, max_cm = PARENT_HEIGHT_LIMITS[parent_label]
     return _validate_numeric_range(
         value,
-        MIN_PARENT_HEIGHT_CM,
-        MAX_PARENT_HEIGHT_CM,
+        min_cm,
+        max_cm,
         f"{parent_label} height",
         ErrorCodes.INVALID_INPUT,
     )

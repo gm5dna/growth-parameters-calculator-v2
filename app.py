@@ -45,6 +45,7 @@ from utils import (
     get_chart_data,
 )
 from validation import (
+    PARENT_HEIGHT_LIMITS,
     ValidationError,
     validate_at_least_one_measurement,
     validate_bone_age,
@@ -183,7 +184,7 @@ def _parse_json_request():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", parent_height_limits=PARENT_HEIGHT_LIMITS)
 
 
 @app.route("/health")

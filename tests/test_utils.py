@@ -9,7 +9,7 @@ from utils import (
     format_success_response,
     get_chart_data,
 )
-from validation import ValidationError
+from validation import PARENT_HEIGHT_LIMITS, ValidationError
 
 
 class TestCalculateMidParentalHeight:
@@ -36,9 +36,17 @@ class TestCalculateMidParentalHeight:
 
     @pytest.mark.parametrize("maternal, paternal", [(105.0, 178.0), (165.0, 240.0)])
     def test_implausible_parent_height_raises_validation_error(self, maternal, paternal):
-        # Inside our 100-250 cm range but beyond rcpchgrowth's +/-8 SDS limit.
-        with pytest.raises(ValidationError, match="SD and considered to be an error"):
+        # Beyond rcpchgrowth's +/-8 SDS adult-height range: rejected by our
+        # validator with a range message, before the library can raise.
+        with pytest.raises(ValidationError, match="must be between"):
             calculate_mid_parental_height(maternal, paternal, "male")
+
+    @pytest.mark.parametrize("sex", ["male", "female"])
+    def test_library_accepts_parent_height_limits(self, sex):
+        # The derived limits must sit inside what rcpchgrowth accepts.
+        (m_lo, m_hi), (p_lo, p_hi) = PARENT_HEIGHT_LIMITS["Maternal"], PARENT_HEIGHT_LIMITS["Paternal"]
+        for maternal, paternal in [(m_lo, p_lo), (m_hi, p_hi)]:
+            assert calculate_mid_parental_height(maternal, paternal, sex) is not None
 
     def test_no_centile_or_sds_returned(self):
         # The sex-neutral parental-mean centile/SDS were removed to avoid being
