@@ -1,0 +1,13 @@
+# Opens PRs for new dependency releases (pip-audit only flags CVEs).
+# CI runs the full suite, including the known-answer growth tests, on each PR.
+# Merging deploys to production, so review each one.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
