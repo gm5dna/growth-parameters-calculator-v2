@@ -1,5 +1,4 @@
 """Integration tests — full clinical workflows."""
-import json
 
 
 class TestTypicalWorkflow:
@@ -19,8 +18,7 @@ class TestTypicalWorkflow:
         }
         response = client.post(
             "/calculate",
-            data=json.dumps(payload),
-            content_type="application/json",
+            json=payload,
         )
         data = response.get_json()
         assert data["success"] is True
@@ -52,8 +50,7 @@ class TestTypicalWorkflow:
         }
         response = client.post(
             "/calculate",
-            data=json.dumps(payload),
-            content_type="application/json",
+            json=payload,
         )
         data = response.get_json()
         assert data["success"] is True
@@ -70,8 +67,7 @@ class TestTypicalWorkflow:
         }
         response = client.post(
             "/calculate",
-            data=json.dumps(payload),
-            content_type="application/json",
+            json=payload,
         )
         data = response.get_json()
         assert data["success"] is True
@@ -87,8 +83,7 @@ class TestTypicalWorkflow:
         }
         response = client.post(
             "/calculate",
-            data=json.dumps(payload),
-            content_type="application/json",
+            json=payload,
         )
         data = response.get_json()
         assert data["success"] is True

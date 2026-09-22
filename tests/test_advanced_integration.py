@@ -1,5 +1,4 @@
 """Integration tests for advanced clinical features."""
-import json
 
 
 class TestAdvancedFeatures:
@@ -24,7 +23,7 @@ class TestAdvancedFeatures:
                 {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["success"] is True
         r = data["results"]
@@ -65,7 +64,7 @@ class TestAdvancedFeatures:
             "measurement_date": "2023-01-01",
             "weight": 14.0,
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["results"]["bsa"]["method"] == "cBNF"
 
@@ -81,7 +80,7 @@ class TestAdvancedFeatures:
                 {"date": "2022-01-01", "height": 93.0},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["success"] is True
         assert len(data["results"]["previous_measurements"]) == 1
@@ -106,7 +105,7 @@ class TestHeightVelocitySelection:
                 {"date": "2022-05-15", "height": 117.0},  # ~13 months — valid
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["success"] is True
         hv = data["results"]["height_velocity"]
@@ -124,7 +123,7 @@ class TestHeightVelocitySelection:
                 {"date": "2023-05-15", "height": 124.0},  # ~1 month only
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         data = response.get_json()
         assert data["success"] is True
         hv = data["results"]["height_velocity"]
@@ -141,7 +140,7 @@ class TestNestedPayloadValidation:
             "height": 96.0,
             "previous_measurements": "not-a-list",
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         body = response.get_json()
         assert body["success"] is False
@@ -155,7 +154,7 @@ class TestNestedPayloadValidation:
             "height": 125.0,
             "bone_age_assessments": "not-a-list",
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
@@ -167,7 +166,7 @@ class TestNestedPayloadValidation:
             "height": 96.0,
             "previous_measurements": ["just-a-string"],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"
 
@@ -182,7 +181,7 @@ class TestNestedPayloadValidation:
                 {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp", "notes": "SECRET"},
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 200
         echoed = response.get_json()["results"]["bone_age_assessments"]
         assert echoed[0] == {"date": "2023-06-10", "bone_age": 7.5, "standard": "gp"}
@@ -198,6 +197,6 @@ class TestNestedPayloadValidation:
                 {"date": "2022-01-01", "height": 90.0} for _ in range(51)
             ],
         }
-        response = client.post("/calculate", data=json.dumps(payload), content_type="application/json")
+        response = client.post("/calculate", json=payload)
         assert response.status_code == 400
         assert response.get_json()["error_code"] == "ERR_010"

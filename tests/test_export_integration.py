@@ -1,6 +1,5 @@
 """Integration tests for export and polish features."""
 import base64
-import json
 from io import BytesIO
 
 from PIL import Image as PILImage
@@ -20,7 +19,7 @@ class TestExportWorkflows:
             "paternal_height": 178.0,
             "patient_info": {},
         }
-        pdf_resp = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        pdf_resp = client.post("/export-pdf", json=payload)
         assert pdf_resp.status_code == 200
         assert pdf_resp.data[:5] == b"%PDF-"
 
@@ -43,7 +42,7 @@ class TestExportWorkflows:
             ],
             "patient_info": {},
         }
-        pdf_resp = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        pdf_resp = client.post("/export-pdf", json=payload)
         assert pdf_resp.status_code == 200
         assert pdf_resp.data[:5] == b"%PDF-"
         assert len(pdf_resp.data) > 1000
@@ -66,7 +65,7 @@ class TestExportWorkflows:
                 "weight": f"data:image/png;base64,{png_b64}",
             },
         }
-        pdf_resp = client.post("/export-pdf", data=json.dumps(payload), content_type="application/json")
+        pdf_resp = client.post("/export-pdf", json=payload)
         assert pdf_resp.status_code == 200
         assert pdf_resp.data[:5] == b"%PDF-"
 
@@ -78,13 +77,13 @@ class TestExportWorkflows:
         assert resp.status_code == 200
         assert b"Growth Parameters Calculator" in resp.data
 
-        calc = client.post("/calculate", data=json.dumps({
+        calc = client.post("/calculate", json={
             "sex": "female", "birth_date": "2021-01-01",
             "measurement_date": "2023-01-01", "weight": 12.0,
-        }), content_type="application/json")
+        })
         assert calc.status_code == 200
 
-        chart = client.post("/chart-data", data=json.dumps({
+        chart = client.post("/chart-data", json={
             "reference": "uk-who", "measurement_method": "height", "sex": "female",
-        }), content_type="application/json")
+        })
         assert chart.status_code == 200

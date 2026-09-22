@@ -1,4 +1,5 @@
 """Tests for validation module."""
+import functools
 from datetime import date
 
 import pytest
@@ -54,22 +55,44 @@ class TestValidateDate:
         assert exc_info.value.code == "ERR_001"
 
 
+@pytest.mark.parametrize(
+    "validator, valid_value, too_low, too_high, error_code",
+    [
+        (validate_weight, 12.5, 0.05, 301.0, "ERR_004"),
+        (validate_height, 85.3, 5.0, 260.0, "ERR_005"),
+        (validate_ofc, 48.2, 5.0, 110.0, "ERR_006"),
+        (
+            functools.partial(validate_parent_height, parent_label="Maternal"),
+            170.5,
+            50,
+            300,
+            "ERR_010",
+        ),
+    ],
+    ids=["weight", "height", "ofc", "parent_height"],
+)
+class TestRangeValidatorsShared:
+    """Shared shape for the simple min/max numeric validators."""
+
+    def test_valid_value_returns_float(self, validator, valid_value, too_low, too_high, error_code):
+        assert validator(valid_value) == valid_value
+
+    def test_none_returns_none(self, validator, valid_value, too_low, too_high, error_code):
+        assert validator(None) is None
+
+    def test_below_minimum_raises(self, validator, valid_value, too_low, too_high, error_code):
+        with pytest.raises(ValidationError) as exc_info:
+            validator(too_low)
+        assert exc_info.value.code == error_code
+
+    def test_above_maximum_raises(self, validator, valid_value, too_low, too_high, error_code):
+        with pytest.raises(ValidationError) as exc_info:
+            validator(too_high)
+        assert exc_info.value.code == error_code
+
+
 class TestValidateWeight:
-    def test_valid_weight(self):
-        assert validate_weight(12.5) == 12.5
-
-    def test_none_returns_none(self):
-        assert validate_weight(None) is None
-
-    def test_below_minimum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_weight(0.05)
-        assert exc_info.value.code == "ERR_004"
-
-    def test_above_maximum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_weight(301.0)
-        assert exc_info.value.code == "ERR_004"
+    """Cases unique to validate_weight, not covered by the shared shape."""
 
     def test_non_numeric_rejected(self):
         with pytest.raises(ValidationError) as exc_info:
@@ -81,42 +104,6 @@ class TestValidateWeight:
 
     def test_boundary_maximum(self):
         assert validate_weight(300.0) == 300.0
-
-
-class TestValidateHeight:
-    def test_valid_height(self):
-        assert validate_height(85.3) == 85.3
-
-    def test_none_returns_none(self):
-        assert validate_height(None) is None
-
-    def test_below_minimum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_height(5.0)
-        assert exc_info.value.code == "ERR_005"
-
-    def test_above_maximum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_height(260.0)
-        assert exc_info.value.code == "ERR_005"
-
-
-class TestValidateOfc:
-    def test_valid_ofc(self):
-        assert validate_ofc(48.2) == 48.2
-
-    def test_none_returns_none(self):
-        assert validate_ofc(None) is None
-
-    def test_below_minimum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_ofc(5.0)
-        assert exc_info.value.code == "ERR_006"
-
-    def test_above_maximum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_ofc(110.0)
-        assert exc_info.value.code == "ERR_006"
 
 
 class TestValidateGestation:
@@ -247,23 +234,10 @@ class TestNonFiniteNumbers:
 
 
 class TestValidateParentHeight:
-    def test_valid_height(self):
-        assert validate_parent_height(170.5, "Maternal") == 170.5
-
-    def test_none_returns_none(self):
-        assert validate_parent_height(None, "Maternal") is None
+    """Cases unique to validate_parent_height, not covered by the shared shape."""
 
     def test_empty_string_returns_none(self):
         assert validate_parent_height("", "Paternal") is None
-
-    def test_below_minimum(self):
-        with pytest.raises(ValidationError) as exc_info:
-            validate_parent_height(50, "Maternal")
-        assert exc_info.value.code == "ERR_010"
-
-    def test_above_maximum(self):
-        with pytest.raises(ValidationError):
-            validate_parent_height(300, "Paternal")
 
     def test_rejects_non_finite(self):
         with pytest.raises(ValidationError):

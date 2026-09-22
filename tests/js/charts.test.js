@@ -85,24 +85,14 @@ describe('reference-aware age range presets', () => {
   const labels = (chartType, reference) =>
     __chartTestHooks.getAgeRangesForTest(chartType, reference).map((r) => r.label);
 
-  test('UK-WHO keeps the full preset list', () => {
-    expect(labels('height', 'uk-who')).toEqual(['0\u20132 years', '0\u20134 years', '0\u201318 years', '2\u201318 years', '8\u201320 years']);
-  });
-
-  test('WHO weight is clamped to 10 years and later presets dropped', () => {
-    expect(labels('weight', 'who')).toEqual(['0\u20132 years', '0\u20134 years', '0\u201310 years']);
-  });
-
-  test('WHO OFC is clamped to 5 years', () => {
-    expect(labels('ofc', 'who')).toEqual(['0\u20132 years', '0\u20135 years']);
-  });
-
-  test('WHO height/BMI stop at 19 years', () => {
-    expect(labels('height', 'who')).toEqual(['0\u20132 years', '0\u20134 years', '0\u201318 years', '2\u201318 years', '8\u201319 years']);
-  });
-
-  test('CDC OFC is clamped to 3 years', () => {
-    expect(labels('ofc', 'cdc')).toEqual(['0\u20132 years', '0\u20133 years']);
+  test.each([
+    ['UK-WHO keeps the full preset list', 'height', 'uk-who', ['0\u20132 years', '0\u20134 years', '0\u201318 years', '2\u201318 years', '8\u201320 years']],
+    ['WHO weight is clamped to 10 years and later presets dropped', 'weight', 'who', ['0\u20132 years', '0\u20134 years', '0\u201310 years']],
+    ['WHO OFC is clamped to 5 years', 'ofc', 'who', ['0\u20132 years', '0\u20135 years']],
+    ['WHO height/BMI stop at 19 years', 'height', 'who', ['0\u20132 years', '0\u20134 years', '0\u201318 years', '2\u201318 years', '8\u201319 years']],
+    ['CDC OFC is clamped to 3 years', 'ofc', 'cdc', ['0\u20132 years', '0\u20133 years']],
+  ])('%s', (_name, chartType, reference, expected) => {
+    expect(labels(chartType, reference)).toEqual(expected);
   });
 
   test('default selection falls back to the last available preset when clamped', () => {
