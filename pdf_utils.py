@@ -92,6 +92,31 @@ GRID_LINE = colors.HexColor("#e5e7eb")
 WARNING_BG = colors.HexColor("#fef3c7")
 WARNING_BORDER = colors.HexColor("#f59e0b")
 
+
+def _table_style(font_size, v_pad, h_pad):
+    """Shared TableStyle commands for the measurements tables.
+
+    font_size applies to header and data rows; v_pad/h_pad set top/bottom and
+    left/right cell padding respectively.
+    """
+    return [
+        ("BACKGROUND", (0, 0), (-1, 0), HEADER_BG),
+        ("TEXTCOLOR", (0, 0), (-1, 0), BLUE_ACCENT),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, 0), font_size),
+        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 1), (-1, -1), font_size),
+        ("GRID", (0, 0), (-1, -1), 0.5, GRID_LINE),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
+        ("ALIGN", (1, 0), (-1, -1), "CENTRE"),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("TOPPADDING", (0, 0), (-1, -1), v_pad),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), v_pad),
+        ("LEFTPADDING", (0, 0), (-1, -1), h_pad),
+        ("RIGHTPADDING", (0, 0), (-1, -1), h_pad),
+    ]
+
+
 # Reference display names
 REFERENCE_NAMES = {
     "uk-who": "UK-WHO",
@@ -380,32 +405,7 @@ class GrowthReportPDF:
             for i, row in enumerate(data)
             if isinstance(row[0], Paragraph)
         ]
-        table.setStyle(
-            TableStyle(
-                band_spans
-                + [
-                    # Header row
-                    ("BACKGROUND", (0, 0), (-1, 0), HEADER_BG),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), BLUE_ACCENT),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 10),
-                    # Data rows
-                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 1), (-1, -1), 10),
-                    # Grid
-                    ("GRID", (0, 0), (-1, -1), 0.5, GRID_LINE),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
-                    # Alignment
-                    ("ALIGN", (1, 0), (-1, -1), "CENTRE"),
-                    ("ALIGN", (0, 0), (0, -1), "LEFT"),
-                    # Padding
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ]
-            )
-        )
+        table.setStyle(TableStyle(band_spans + _table_style(10, 6, 8)))
         story.append(table)
         story.append(Spacer(1, 8))
 
@@ -595,26 +595,7 @@ class GrowthReportPDF:
 
         col_widths = [2.8 * cm, 2.5 * cm, 2.5 * cm, 2.5 * cm, 2.5 * cm, 2.5 * cm]
         table = Table(data, colWidths=col_widths)
-        table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), HEADER_BG),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), BLUE_ACCENT),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, 0), 9),
-                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 1), (-1, -1), 9),
-                    ("GRID", (0, 0), (-1, -1), 0.5, GRID_LINE),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")]),
-                    ("ALIGN", (1, 0), (-1, -1), "CENTRE"),
-                    ("ALIGN", (0, 0), (0, -1), "LEFT"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 5),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ]
-            )
-        )
+        table.setStyle(TableStyle(_table_style(9, 5, 6)))
         story.append(table)
         story.append(Spacer(1, 8))
 

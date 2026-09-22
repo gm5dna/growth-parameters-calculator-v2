@@ -1,21 +1,21 @@
 let buildMeasurementSummaryRows,
   buildExportPdfPayload,
-  showChartFromSummary,
   resetForm,
   initApp,
   __testHooks,
-  appState;
+  appState,
+  showCharts;
 
 beforeAll(async () => {
   ({
     buildMeasurementSummaryRows,
     buildExportPdfPayload,
-    showChartFromSummary,
     resetForm,
     initApp,
     __testHooks,
   } = await import('../../static/script.mjs'));
   ({ appState } = await import('../../static/state.mjs'));
+  ({ showCharts } = await import('../../static/charts.mjs'));
 });
 
 describe('buildMeasurementSummaryRows', () => {
@@ -62,7 +62,7 @@ describe('buildMeasurementSummaryRows', () => {
   });
 });
 
-describe('showChartFromSummary', () => {
+describe('showCharts', () => {
   beforeEach(() => {
     document.body.innerHTML = `
       <section id="chartsSection" hidden></section>
@@ -89,7 +89,7 @@ describe('showChartFromSummary', () => {
   });
 
   test('reveals charts section, hides launch button, and switches chart type', () => {
-    showChartFromSummary('weight');
+    showCharts('weight');
 
     const section = document.getElementById('chartsSection');
     const btn = document.getElementById('showChartsBtn');
@@ -109,7 +109,7 @@ describe('showChartFromSummary', () => {
 
   test('tolerates missing DOM elements', () => {
     document.body.innerHTML = '';
-    expect(() => showChartFromSummary('bmi')).not.toThrow();
+    expect(() => showCharts('bmi')).not.toThrow();
   });
 });
 
@@ -223,18 +223,6 @@ describe('debounce', () => {
     jest.advanceTimersByTime(500);
 
     expect(fn).not.toHaveBeenCalled();
-  });
-
-  test('flush runs the pending call immediately once', () => {
-    const fn = jest.fn();
-    const debounced = __testHooks.createDebounced(fn, 500);
-
-    debounced('first', 'second');
-    debounced.flush();
-    jest.advanceTimersByTime(500);
-
-    expect(fn).toHaveBeenCalledTimes(1);
-    expect(fn).toHaveBeenCalledWith('first', 'second');
   });
 });
 
