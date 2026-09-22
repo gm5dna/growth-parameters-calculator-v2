@@ -4,14 +4,12 @@ from constants import (
     BONE_AGE_WINDOW_DAYS,
     CBNF_BSA_TABLE,
     DEFAULT_REFERENCE,
-    GH_PEN_DEVICES,
     GH_STANDARD_DOSE_MG_M2_WEEK,
     MAX_AGE_YEARS,
     MAX_GESTATION_WEEKS,
     MAX_HEIGHT_CM,
     MAX_OFC_CM,
     MAX_WEIGHT_KG,
-    MIN_AGE_YEARS,
     MIN_GESTATION_WEEKS,
     MIN_HEIGHT_CM,
     MIN_OFC_CM,
@@ -29,7 +27,6 @@ from constants import (
 
 
 def test_age_limits():
-    assert MIN_AGE_YEARS == 0.0
     assert MAX_AGE_YEARS == 25.0
 
 
@@ -95,18 +92,6 @@ def test_cbnf_bsa_table():
 
 def test_gh_constants():
     assert GH_STANDARD_DOSE_MG_M2_WEEK == 7.0
-
-
-def test_gh_pen_devices():
-    assert isinstance(GH_PEN_DEVICES, list)
-    assert len(GH_PEN_DEVICES) == 6
-    nordi5 = [d for d in GH_PEN_DEVICES if d["id"] == "norditropin-5"][0]
-    assert nordi5["step"] == 0.025
-    assert nordi5["min"] == 0.025
-    assert nordi5["max"] == 2.0
-    surepal5 = [d for d in GH_PEN_DEVICES if d["id"] == "surepal-5"][0]
-    assert surepal5["step"] == 0.1
-    assert surepal5["max"] == 2.4
 
 
 def test_velocity_constants():

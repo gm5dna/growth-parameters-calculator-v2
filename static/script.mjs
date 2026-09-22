@@ -21,7 +21,7 @@ import {
   destroyChart,
   downloadChart,
   loadAndRenderChart,
-  switchChartType,
+  showCharts,
 } from './charts.mjs';
 import { appState, resetAppState } from './state.mjs';
 
@@ -55,14 +55,6 @@ function debounce(fn, delay) {
 
   debounced.cancel = function () {
     clearPending();
-    lastThis = undefined;
-    lastArgs = undefined;
-  };
-
-  debounced.flush = function () {
-    if (!timer) return;
-    clearPending();
-    fn.apply(lastThis, lastArgs || []);
     lastThis = undefined;
     lastArgs = undefined;
   };
@@ -319,6 +311,18 @@ function _makeDeleteCell(onClick) {
   return td;
 }
 
+// Shared tail for the previous-measurements and bone-age tables: wire the
+// delete button, wire each input's change to autosave, append the row, and
+// trigger an immediate save.
+function appendDataRow(tbody, tr, inputs) {
+  tr.appendChild(_makeDeleteCell(function() { tr.remove(); debouncedSave(); }));
+  inputs.forEach(function(input) {
+    input.addEventListener('change', debouncedSave);
+  });
+  tbody.appendChild(tr);
+  debouncedSave();
+}
+
 function addPrevMeasurementRow(dateVal, heightVal, weightVal, ofcVal) {
   var tbody = document.getElementById('prevMeasurementsBody');
   if (!tbody) return;
@@ -331,12 +335,7 @@ function addPrevMeasurementRow(dateVal, heightVal, weightVal, ofcVal) {
   tr.appendChild(heightCell.td);
   tr.appendChild(weightCell.td);
   tr.appendChild(ofcCell.td);
-  tr.appendChild(_makeDeleteCell(function() { tr.remove(); debouncedSave(); }));
-  [dateCell.input, heightCell.input, weightCell.input, ofcCell.input].forEach(function(input) {
-    input.addEventListener('change', debouncedSave);
-  });
-  tbody.appendChild(tr);
-  debouncedSave();
+  appendDataRow(tbody, tr, [dateCell.input, heightCell.input, weightCell.input, ofcCell.input]);
 }
 
 function getPreviousMeasurements() {
@@ -486,12 +485,7 @@ function addBoneAgeRow(dateVal, ageVal, standardVal) {
     tr.appendChild(dateCell.td);
     tr.appendChild(ageCell.td);
     tr.appendChild(standardTd);
-    tr.appendChild(_makeDeleteCell(function() { tr.remove(); debouncedSave(); }));
-    [dateCell.input, ageCell.input, select].forEach(function(el) {
-        el.addEventListener('change', debouncedSave);
-    });
-    tbody.appendChild(tr);
-    debouncedSave();
+    appendDataRow(tbody, tr, [dateCell.input, ageCell.input, select]);
 }
 
 function getBoneAgeAssessments() {
@@ -842,15 +836,6 @@ function createResultCard(label, value, subs) {
   return card;
 }
 
-function showChartFromSummary(chartType) {
-  var chartsSection = document.getElementById('chartsSection');
-  var showChartsBtn = document.getElementById('showChartsBtn');
-  if (chartsSection) chartsSection.hidden = false;
-  if (showChartsBtn) showChartsBtn.hidden = true;
-  switchChartType(chartType);
-  if (chartsSection) chartsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
 function renderMeasurementSummary(rows) {
   if (!measurementSummary) return;
   measurementSummary.innerHTML = '';
@@ -906,7 +891,7 @@ function renderMeasurementSummary(rows) {
     chartBtn.setAttribute('data-chart', row.key);
     chartBtn.textContent = 'Chart';
     chartBtn.addEventListener('click', function () {
-      showChartFromSummary(row.key);
+      showCharts(row.key);
     });
     chartCell.appendChild(chartBtn);
     tr.appendChild(chartCell);
@@ -1487,7 +1472,6 @@ export {
   localDateString,
   buildMeasurementSummaryRows,
   buildExportPdfPayload,
-  showChartFromSummary,
   gatherFormData,
   saveFormState,
   restoreFormState,

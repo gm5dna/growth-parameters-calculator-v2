@@ -371,15 +371,15 @@ export async function loadAndRenderChart() {
 
 /**
  * Reveal the charts section, hide the "Show Growth Charts" button,
- * default to the height tab, and scroll to the chart.
+ * switch to the given tab (default height), and scroll to the chart.
  */
-function showCharts() {
+export function showCharts(chartType = 'height') {
   var chartsSection = document.getElementById('chartsSection');
   var showChartsBtn = document.getElementById('showChartsBtn');
   if (chartsSection) chartsSection.hidden = false;
   if (showChartsBtn) showChartsBtn.hidden = true;
 
-  switchChartType('height');
+  switchChartType(chartType);
   if (chartsSection) chartsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -1176,7 +1176,7 @@ export function initCharts() {
 
   // Show Charts button
   var showChartsBtn = document.getElementById('showChartsBtn');
-  if (showChartsBtn) showChartsBtn.addEventListener('click', showCharts);
+  if (showChartsBtn) showChartsBtn.addEventListener('click', function () { showCharts(); });
 
   // Close Charts button
   var closeChartsBtn = document.getElementById('closeChartsBtn');
