@@ -3,7 +3,8 @@ let validateDate,
   validateHeight,
   validateOfc,
   validateSex,
-  validateAtLeastOneMeasurement;
+  validateAtLeastOneMeasurement,
+  validateNumericRange;
 
 beforeAll(async () => {
   ({
@@ -13,6 +14,7 @@ beforeAll(async () => {
     validateOfc,
     validateSex,
     validateAtLeastOneMeasurement,
+    validateNumericRange,
   } = await import('../../static/validation.mjs'));
 });
 
@@ -91,5 +93,18 @@ describe('validateAtLeastOneMeasurement', () => {
     ['fails with no measurements', ['', '', ''], false],
   ])('%s', (_name, args, isValid) => {
     expectValidity(validateAtLeastOneMeasurement(...args), isValid);
+  });
+});
+
+describe('validateNumericRange (parental heights, limits from input min/max)', () => {
+  test.each([
+    ['accepts value at minimum', '115.4', true],
+    ['accepts value at maximum', '211.9', true],
+    ['accepts empty (optional)', '', true],
+    ['rejects below minimum', '105', false],
+    ['rejects above maximum', '212', false],
+    ['rejects non-numeric', '1.6m', false],
+  ])('%s', (_name, input, isValid) => {
+    expectValidity(validateNumericRange(input, 115.4, 211.9, 'Maternal height'), isValid);
   });
 });

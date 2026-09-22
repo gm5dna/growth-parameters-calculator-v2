@@ -20,3 +20,7 @@ ignore = [
 
 [tool.ruff.format]
 quote-style = "double"
+
+[tool.coverage.run]
+# Measure the app, not the tests or the virtualenv.
+omit = ["tests/*", "venv/*", ".venv/*"]
