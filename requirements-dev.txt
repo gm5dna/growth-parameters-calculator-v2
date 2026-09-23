@@ -54,7 +54,7 @@ packaging==26.1
     #   wheel
 pip-api==0.0.34
     # via pip-audit
-pip-audit==2.10.0
+pip-audit==2.10.1
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
     # via pip-audit
@@ -78,7 +78,7 @@ pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
-pytest==9.0.3
+pytest==9.1.1
     # via
     #   -r requirements-dev.in
     #   pytest-cov
@@ -90,7 +90,7 @@ requests==2.33.1
     #   pip-audit
 rich==15.0.0
     # via pip-audit
-ruff==0.15.11
+ruff==0.16.8
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via cyclonedx-python-lib
