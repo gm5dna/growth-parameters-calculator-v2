@@ -19,4 +19,4 @@ EXPOSE 8080
 # authoritative. To scale out, set WEB_CONCURRENCY>1 AND point
 # RATELIMIT_STORAGE_URI at a shared backend (e.g. redis://) — otherwise rate
 # limits become per-worker (see _warn_if_ratelimit_storage_unsafe in app.py).
-CMD exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers "${WEB_CONCURRENCY:-1}" --timeout 120 --access-logfile - app:app
+CMD exec gunicorn --bind "0.0.0.0:${PORT:-8080}" --workers "${WEB_CONCURRENCY:-1}" --timeout 120 --no-control-socket --access-logfile - app:app
