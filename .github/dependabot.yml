@@ -1,13 +1,22 @@
 # Opens PRs for new dependency releases (pip-audit only flags CVEs).
 # CI runs the full suite, including the known-answer growth tests, on each PR.
 # Merging deploys to production, so review each one.
+#
+# Minor/patch updates are grouped into one PR per ecosystem per week; major
+# updates still arrive one per PR, since those are the ones that need a look.
 version: 2
 updates:
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      pip-minor-patch:
+        update-types: ["minor", "patch"]
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
