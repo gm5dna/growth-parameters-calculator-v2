@@ -45,7 +45,6 @@ from pdf_utils import GrowthReportPDF
 from utils import (
     calculate_mid_parental_height,
     format_error_response,
-    format_success_response,
     get_chart_data,
 )
 from validation import (
@@ -95,42 +94,6 @@ limiter = Limiter(
     storage_uri=_RATELIMIT_STORAGE_URI,
 )
 
-
-def _configured_worker_count():
-    """Best-effort read of the Gunicorn worker count from the environment.
-
-    Gunicorn honours WEB_CONCURRENCY. We only need to know whether it is >1
-    so we can warn that in-memory rate-limit state is not shared across
-    workers.
-    """
-    web_concurrency = os.environ.get("WEB_CONCURRENCY")
-    if web_concurrency and web_concurrency.isdigit():
-        return int(web_concurrency)
-    return None
-
-
-def _warn_if_ratelimit_storage_unsafe():
-    """Warn when in-memory rate-limit storage is paired with multiple workers.
-
-    ``memory://`` is per-process, so with N Gunicorn workers the effective
-    limit is ~N× the configured value and resets whenever a worker restarts —
-    silently weakening the DoS protection on /calculate, /chart-data and
-    /export-pdf. Operators running >1 worker must set RATELIMIT_STORAGE_URI to
-    a shared backend (e.g. redis://).
-    """
-    if not _RATELIMIT_STORAGE_URI.startswith("memory://"):
-        return
-    workers = _configured_worker_count()
-    if workers is not None and workers > 1:
-        logger.warning(
-            "Rate limiting uses in-memory storage but %d workers are configured; "
-            "limits are per-worker and not shared. Set RATELIMIT_STORAGE_URI to a "
-            "shared backend (e.g. redis://) for correct multi-worker rate limiting.",
-            workers,
-        )
-
-
-_warn_if_ratelimit_storage_unsafe()
 
 # Per-endpoint limits. Both calculation endpoints run an rcpchgrowth lookup
 # that dominates per-request cost, so we apply the same env-tunable cap.
@@ -642,7 +605,7 @@ def calculate():
     # _patient is only needed by /export-pdf; strip it from the public response.
     results.pop("_patient", None)
     logger.info("Calculation completed")
-    return jsonify(format_success_response(results)), 200
+    return jsonify({"success": True, "results": results}), 200
 
 
 @app.route("/chart-data", methods=["POST"])

@@ -17,6 +17,11 @@
     "testEnvironment": "jsdom",
     "roots": [
       "<rootDir>/tests/js"
-    ]
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 60
+      }
+    }
   }
 }

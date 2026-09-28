@@ -25,9 +25,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 # expect the app to bind to it.
 #
 # Default to a SINGLE worker so the default in-memory rate limiter is
-# authoritative. To scale out, set WEB_CONCURRENCY>1 AND point
-# RATELIMIT_STORAGE_URI at a shared backend (e.g. redis://) — otherwise rate
-# limits become per-worker (see _warn_if_ratelimit_storage_unsafe in app.py).
+# authoritative. Multi-worker needs RATELIMIT_STORAGE_URI=redis://.
 #
 # --threads 4 (>1 implies the gthread worker class) keeps one slow PDF export
 # from blocking every other request while staying in a single process.

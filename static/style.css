@@ -1094,7 +1094,6 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
   padding: 12px;
   cursor: pointer;
   color: var(--accent-primary);
@@ -1105,7 +1104,18 @@ select {
   background: transparent;
   border: 0;
   border-radius: 6px;
+  list-style: none;
 }
+
+.collapsible-header::-webkit-details-marker { display: none; }
+
+.collapsible-header::before {
+  content: '+';
+  font-size: 20px;
+  line-height: 1;
+}
+
+details[open] > .collapsible-header::before { content: '\2212'; }
 
 .collapsible-header:hover {
   background: var(--accent-subtle);
