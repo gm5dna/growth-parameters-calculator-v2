@@ -9,7 +9,7 @@
  * plotting, MPH display, tooltips).
  */
 
-import { formatCentile, formatSds } from './format.mjs';
+import { formatCentile, formatSds, localDateString } from './format.mjs';
 import { appState } from './state.mjs';
 
 /* ------------------------------------------------------------------ */
@@ -307,7 +307,8 @@ function handleChartTabKeydown(event) {
  *
  * @param {string} chartType - "height"|"weight"|"bmi"|"ofc".
  */
-function renderAgeRangeSelector(chartType) {
+export function renderAgeRangeSelector(chartType) {
+  chartType = chartType || currentChartType;
   var container = document.getElementById('ageRangeSelector');
   if (!container) return;
   container.innerHTML = '';
@@ -357,12 +358,34 @@ export async function loadAndRenderChart() {
   try {
     var centiles = await fetchChartData(reference, chartTypeForRequest, sex, requestId);
     if (requestId !== activeChartRequestId || chartTypeForRequest !== currentChartType) return;
+    setChartUnavailable(false);
     renderChart(centiles, ageRange, chartTypeForRequest);
   } catch (err) {
     if (requestId === activeChartRequestId) {
       console.error('Chart render failed:', err);
+      // Never leave the previous chart under the new tab label (review M8).
+      destroyChart();
+      setChartUnavailable(true);
     }
   }
+}
+
+function setChartUnavailable(show) {
+  var panel = document.getElementById('growthChartPanel');
+  if (!panel) return;
+  var el = document.getElementById('chartUnavailable');
+  if (!el && show) {
+    el = document.createElement('p');
+    el.id = 'chartUnavailable';
+    el.className = 'chart-unavailable';
+    el.setAttribute('role', 'status');
+    panel.insertBefore(el, panel.firstChild);
+  }
+  if (!el) return;
+  el.textContent = show ? 'Chart not available for this reference/measurement' : '';
+  el.hidden = !show;
+  var container = panel.querySelector('.chart-container');
+  if (container) container.hidden = !!show;
 }
 
 /* ------------------------------------------------------------------ */
@@ -924,6 +947,13 @@ function renderChart(centiles, ageRange, chartType) {
   // MPH annotations (height chart only, adult range)
   var annotations = getMphAnnotations(chartType, ageRange);
 
+  // Allow a negative minimum so a pre-term corrected age (< 0) isn't clipped.
+  var xAxisMin = ageRange.min;
+  var corrected = appState.lastResults ? appState.lastResults.corrected_age_years : undefined;
+  if (typeof corrected === 'number' && corrected < 0 && ageRange.min <= 0) {
+    xAxisMin = Math.min(ageRange.min, Math.floor(corrected * 20) / 20);
+  }
+
   var config = {
     type: 'line',
     data: { datasets: datasets },
@@ -935,7 +965,7 @@ function renderChart(centiles, ageRange, chartType) {
         x: {
           type: 'linear',
           title: { display: true, text: 'Age (years)', color: colors.textColor },
-          min: ageRange.min,
+          min: xAxisMin,
           max: ageRange.max,
           grid: { color: colors.gridColor },
           ticks: { color: colors.textColor },
@@ -1075,14 +1105,14 @@ export function downloadChart() {
     var ageRange = ranges[currentAgeRangeIndex] || ranges[0];
     var cacheKey = currentReference() + '|' + currentChartType + '|' + (appState.lastPayload ? appState.lastPayload.sex : 'male');
     var centiles = chartDataCache[cacheKey];
-    if (centiles) renderChart(centiles, ageRange, currentChartType);
 
     try {
+        if (centiles) renderChart(centiles, ageRange, currentChartType);
         var canvas = document.getElementById('growthChart');
         if (!canvas) return;
 
         var chartType = currentChartType || 'chart';
-        var date = new Date().toISOString().split('T')[0];
+        var date = localDateString();
         var filename = 'growth-chart-' + chartType + '-' + date + '.png';
 
         // Create high-res export canvas (2x for Retina)
@@ -1115,6 +1145,7 @@ export async function captureChartImages() {
     var reference = (appState.lastPayload) ? appState.lastPayload.reference || 'uk-who' : 'uk-who';
     var sex = (appState.lastPayload) ? appState.lastPayload.sex : 'male';
     var savedType = currentChartType;
+    var savedAgeRangeIndex = currentAgeRangeIndex;
 
     // Temporarily show charts section so the canvas has dimensions
     var chartsSection = document.getElementById('chartsSection');
@@ -1156,6 +1187,12 @@ export async function captureChartImages() {
     // Restore the chart that was showing before capture
     if (savedType) {
         switchChartType(savedType);
+        // switchChartType resets the range to the default; put the user's back.
+        currentAgeRangeIndex = savedAgeRangeIndex;
+        document.querySelectorAll('#ageRangeSelector input[name="ageRange"]').forEach(function(r) {
+            r.checked = Number(r.value) === savedAgeRangeIndex;
+        });
+        loadAndRenderChart();
     }
 
     // Re-hide charts section if it was hidden before

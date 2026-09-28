@@ -4,7 +4,9 @@ let buildMeasurementSummaryRows,
   initApp,
   __testHooks,
   appState,
-  showCharts;
+  showCharts,
+  gatherFormData,
+  handleSubmit;
 
 beforeAll(async () => {
   ({
@@ -13,6 +15,8 @@ beforeAll(async () => {
     resetForm,
     initApp,
     __testHooks,
+    gatherFormData,
+    handleSubmit,
   } = await import('../../static/script.mjs'));
   ({ appState } = await import('../../static/state.mjs'));
   ({ showCharts } = await import('../../static/charts.mjs'));
@@ -280,6 +284,22 @@ describe('calculate request sequencing', () => {
     delete global.fetch;
   });
 
+  test('H1: switching mode recalculates (toggle is outside the form)', async () => {
+    const { handleModeToggle } = await import('../../static/script.mjs');
+    const toggle = document.createElement('input');
+    toggle.type = 'checkbox';
+    toggle.id = 'modeToggle';
+    document.body.appendChild(toggle);
+
+    handleModeToggle();
+    jest.advanceTimersByTime(900);
+    await Promise.resolve();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    toggle.remove();
+    localStorage.clear(); // handleModeToggle's debounced save would leak into later restores
+  });
+
   test('manual submit cancels a pending auto-calculate', async () => {
     __testHooks.resetCalculateState();
     __testHooks.scheduleAutoCalculate();
@@ -398,3 +418,138 @@ describe('localDateString (review #4 — local, not UTC)', () => {
     expect(localDateString(new Date(2026, 0, 5))).toBe('2026-01-05');
   });
 });
+
+describe('review fixes: basic mode, reset, gestation, Escape, PDF dose', () => {
+  const html = `
+    <form id="growthForm">
+      <input type="radio" name="sex" id="sexMale" value="male" checked />
+      <input type="date" id="birthDate" value="2018-04-25" />
+      <input type="date" id="measurementDate" value="2024-04-25" />
+      <input type="number" id="weight" value="20.5" />
+      <input type="number" id="height" value="114.2" />
+      <input type="number" id="ofc" value="" />
+      <input type="number" id="maternalHeight" value="170" min="120" max="220" />
+      <input type="number" id="paternalHeight" value="180" min="120" max="220" />
+      <input type="number" id="gestationWeeks" value="30" />
+      <input type="number" id="gestationDays" value="" />
+      <span id="gestationError"></span>
+      <select id="reference"><option value="turner" selected>Turner</option></select>
+      <input type="checkbox" id="ghTreatment" checked />
+      <select id="ghPenDevice"><option value="surepal-10" selected>SurePal 10</option></select>
+      <button type="submit" id="calculateBtn">Calculate</button>
+      <button type="button" id="resetBtn">Reset</button>
+    </form>
+    <div id="errorDisplay" hidden><p id="errorMessage"></p></div>
+    <section id="resultsSection" hidden></section>
+    <div id="measurementSummary" hidden></div>
+    <div id="resultsGrid"></div>
+    <div id="warningsDisplay" hidden><ul id="warningsList"></ul></div>
+    <button id="showChartsBtn" hidden></button>
+    <section id="chartsSection" hidden></section>
+    <div id="ghCalculator" hidden></div>
+    <div id="toast" hidden></div>
+    <div id="disclaimer"></div>
+    <button id="dismissDisclaimer"></button>
+    <button id="themeToggle"></button>
+  `;
+
+  beforeEach(() => {
+    document.body.className = '';
+    document.body.innerHTML = html;
+    Element.prototype.scrollIntoView = jest.fn();
+    global.fetch = jest.fn();
+    __testHooks.resetCalculateState();
+    initApp();
+  });
+
+  afterEach(() => {
+    delete global.fetch;
+    appState.lastPayload = null;
+  });
+
+  test('H1: basic mode omits advanced-only fields from the payload', () => {
+    const p = gatherFormData();
+    ['reference', 'gestation_weeks', 'gh_treatment', 'maternal_height', 'paternal_height']
+      .forEach((k) => expect(p).not.toHaveProperty(k));
+    expect(p.weight).toBe(20.5);
+    // values are kept, not cleared
+    expect(document.getElementById('gestationWeeks').value).toBe('30');
+  });
+
+  test('H1: advanced mode includes them', () => {
+    document.body.classList.add('advanced-mode');
+    const p = gatherFormData();
+    expect(p).toMatchObject({ reference: 'turner', gestation_weeks: 30, gh_treatment: true, maternal_height: 170 });
+  });
+
+  test('M6: basic mode ignores (does not validate) hidden gestation', async () => {
+    document.getElementById('gestationWeeks').value = '36.5';
+    await handleSubmit(new Event('submit', { cancelable: true }));
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test('M6: 36.5 weeks rejected client-side in advanced mode', async () => {
+    document.body.classList.add('advanced-mode');
+    document.getElementById('gestationWeeks').value = '36.5';
+    await handleSubmit(new Event('submit', { cancelable: true }));
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(document.getElementById('gestationError').textContent).toMatch(/whole number/);
+    expect(document.getElementById('gestationWeeks').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  test('M6: sends gestation as Number', () => {
+    document.body.classList.add('advanced-mode');
+    expect(typeof gatherFormData().gestation_weeks).toBe('number');
+  });
+
+  test('H4: a response arriving after reset is ignored', async () => {
+    let resolve;
+    global.fetch.mockReturnValue(new Promise((r) => { resolve = r; }));
+    const pending = handleSubmit(new Event('submit', { cancelable: true }));
+    resetForm();
+    resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, results: { age_years: 6, age_calendar: { years: 6, months: 0, days: 0 } } }),
+    });
+    await pending;
+    expect(document.getElementById('resultsSection').hidden).toBe(true);
+    expect(appState.lastResults).toBeNull();
+    expect(document.getElementById('calculateBtn').disabled).toBe(false);
+  });
+
+  test('L8: non-JSON error response reports the status', async () => {
+    global.fetch.mockResolvedValue({ ok: false, status: 429, json: async () => { throw new Error('html'); } });
+    await handleSubmit(new Event('submit', { cancelable: true }));
+    expect(document.getElementById('errorMessage').textContent).toMatch(/429/);
+  });
+
+  test('M7: server failure hides stale results and clears state', async () => {
+    document.getElementById('resultsSection').hidden = false;
+    appState.lastResults = { age_years: 1 };
+    global.fetch.mockResolvedValue({ ok: false, status: 400, json: async () => ({ success: false, error: 'bad' }) });
+    await handleSubmit(new Event('submit', { cancelable: true }));
+    expect(document.getElementById('resultsSection').hidden).toBe(true);
+    expect(appState.lastResults).toBeNull();
+  });
+
+  test('M10: Escape in an input does not reset; outside inputs it does', () => {
+    const weight = document.getElementById('weight');
+    weight.value = '99';
+    weight.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(weight.value).toBe('99');
+    weight.blur();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.getElementById('weight').value).toBe('20.5'); // form.reset() to defaults
+  });
+
+  test('M5: PDF payload carries the on-screen GH dose only when calculator is visible', () => {
+    appState.lastPayload = { sex: 'male' };
+    __testHooks.setGhState({ dose: 0.9, bsa: 1, weightKg: 20 });
+    expect(buildExportPdfPayload({})).not.toHaveProperty('gh_selected_daily_dose_mg');
+    document.getElementById('ghCalculator').hidden = false;
+    expect(buildExportPdfPayload({}).gh_selected_daily_dose_mg).toBe(0.9);
+  });
+});
+

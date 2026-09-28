@@ -14,6 +14,7 @@ html { font-size: 16px; }
   --text-primary: #1a2332;
   --text-secondary: #5c6878;
   --accent-primary: #0d7d8c;
+  --on-accent: #fff;
   --accent-secondary: #096b78;
   --accent-subtle: #e8f4f6;
   --border-color: #dce1e8;
@@ -30,6 +31,7 @@ html { font-size: 16px; }
     --text-primary: #e8ecf1;
     --text-secondary: #8e9bab;
     --accent-primary: #2eb8c9;
+    --on-accent: #10202a; /* dark text on the light teal: >= 4.5:1 */
     --accent-secondary: #5cc9d6;
     --accent-subtle: #1a3a42;
     --border-color: #2d3b4d;
@@ -638,7 +640,7 @@ input::placeholder {
 .btn-summary-chart:hover,
 .btn-summary-chart:focus-visible {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--on-accent);
   outline: none;
 }
 
@@ -876,7 +878,7 @@ input::placeholder {
 
 .btn-show-charts:hover {
   background: var(--accent-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .charts-section {
@@ -968,7 +970,7 @@ input::placeholder {
 .age-range-selector label:has(input:checked) {
   background: var(--accent-primary);
   border-color: var(--accent-primary);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 /* Chart container */
@@ -1242,7 +1244,7 @@ select {
 }
 .btn-copy { background: var(--bg-secondary); border: 1px solid var(--border-color); color: var(--text-primary); }
 .btn-copy:hover { background: var(--border-color); }
-.btn-export-pdf { background: var(--accent-primary); color: white; }
+.btn-export-pdf { background: var(--accent-primary); color: var(--on-accent); }
 .btn-export-pdf:hover { opacity: 0.9; }
 .btn-export-pdf:disabled { opacity: 0.6; cursor: wait; }
 
@@ -1251,3 +1253,5 @@ select {
 
 /* Theme toggle */
 .theme-toggle { margin-right: 8px; }
+
+.chart-unavailable { padding: 24px 12px; text-align: center; color: var(--text-secondary); }
