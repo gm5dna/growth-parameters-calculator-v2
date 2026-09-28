@@ -107,9 +107,14 @@ class TestCalculateCbnfBsa:
     def test_exact_table_value(self):
         assert calculate_cbnf_bsa(10.0) == 0.49
 
-    def test_interpolation_between_values(self):
-        bsa = calculate_cbnf_bsa(15.0)
-        assert abs(bsa - 0.64) < 0.01
+    def test_full_bnfc_rows(self):
+        # Rows the old 9-point table interpolated inaccurately (BNFC, 28/09/2026).
+        assert calculate_cbnf_bsa(15.0) == 0.65
+        assert calculate_cbnf_bsa(25.0) == 0.92
+        assert calculate_cbnf_bsa(1.5) == 0.13
+
+    def test_interpolation_between_rows(self):
+        assert calculate_cbnf_bsa(7.25) == 0.39  # between 7 kg 0.38 and 7.5 kg 0.40
 
     def test_minimum_weight(self):
         assert calculate_cbnf_bsa(1.0) == 0.10

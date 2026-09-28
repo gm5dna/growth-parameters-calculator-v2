@@ -83,7 +83,9 @@ def test_error_codes_exist():
 
 def test_cbnf_bsa_table():
     assert isinstance(CBNF_BSA_TABLE, list)
-    assert len(CBNF_BSA_TABLE) == 9
+    assert len(CBNF_BSA_TABLE) == 99  # BNFC: 0.5 kg steps to 10 kg, then 1 kg to 90 kg
+    weights = [w for w, _ in CBNF_BSA_TABLE]
+    assert weights == sorted(weights)
     assert CBNF_BSA_TABLE[0] == (1, 0.10)
     assert CBNF_BSA_TABLE[-1] == (90, 2.2)
 
