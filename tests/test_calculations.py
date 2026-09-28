@@ -10,7 +10,7 @@ from calculations import (
     calculate_cbnf_bsa,
     calculate_gh_dose,
     calculate_height_velocity,
-    should_apply_gestation_correction,
+    library_corrected_age,
 )
 
 
@@ -58,44 +58,30 @@ class TestCalculateCalendarAge:
         assert result["days"] == 0
 
 
-class TestShouldApplyGestationCorrection:
-    """Correction stops at the CORRECTED birthday (RCPCH date-age-calculations)."""
+class TestLibraryCorrectedAge:
+    """Mirror of rcpchgrowth's corrected age: correction at every age (RCPCH)."""
 
     BIRTH = date(2024, 1, 1)
 
-    def test_term_baby_no_correction(self):
-        assert should_apply_gestation_correction(self.BIRTH, date(2024, 7, 1), 38) is False
+    def test_no_gestation_is_chronological(self):
+        on = date(2024, 7, 1)
+        assert library_corrected_age("uk-who", self.BIRTH, on, 0) == (on - self.BIRTH).days / 365.25
 
-    def test_none_gestation_no_correction(self):
-        assert should_apply_gestation_correction(self.BIRTH, date(2024, 7, 1), None) is False
+    def test_before_edd_negative(self):
+        # 28+0 born 2024-01-01: EDD 2024-03-25.
+        assert library_corrected_age("uk-who", self.BIRTH, date(2024, 2, 1), 28) < 0
 
-    def test_before_edd_still_corrected(self):
-        # 28+0 born 2024-01-01: EDD 2024-03-25; 2024-02-01 is before EDD.
-        assert should_apply_gestation_correction(self.BIRTH, date(2024, 2, 1), 28) is True
+    def test_uk_who_corrected_at_five_years(self):
+        on = date(2029, 1, 1)
+        assert library_corrected_age("uk-who", self.BIRTH, on, 28) < (on - self.BIRTH).days / 365.25
 
-    def test_34wk_first_corrected_birthday(self):
-        # 34+0: EDD = 2024-02-12, so 1st corrected birthday = 2025-02-12.
-        assert should_apply_gestation_correction(self.BIRTH, date(2025, 2, 11), 34) is True
-        assert should_apply_gestation_correction(self.BIRTH, date(2025, 2, 12), 34) is False
+    def test_cdc_stops_at_corrected_age_2(self):
+        on = date(2027, 1, 1)
+        assert library_corrected_age("cdc", self.BIRTH, on, 30) == (on - self.BIRTH).days / 365.25
 
-    def test_28wk_second_corrected_birthday(self):
-        # 28+0: EDD = 2024-03-25, so 2nd corrected birthday = 2026-03-25.
-        assert should_apply_gestation_correction(self.BIRTH, date(2026, 3, 24), 28) is True
-        assert should_apply_gestation_correction(self.BIRTH, date(2026, 3, 25), 28) is False
-
-    def test_28wk_past_first_birthday_still_corrected(self):
-        assert should_apply_gestation_correction(self.BIRTH, date(2025, 6, 1), 28) is True
-
-    def test_31_plus_6_vs_32_plus_0(self):
-        # ~1.5 y corrected: 31+6 is "<32" (2-year rule), 32+0 is the 1-year rule.
-        on = date(2025, 8, 1)
-        assert should_apply_gestation_correction(self.BIRTH, on, 31, 6) is True
-        assert should_apply_gestation_correction(self.BIRTH, on, 32, 0) is False
-
-    def test_36_plus_6_vs_37_plus_0(self):
-        on = date(2024, 6, 1)
-        assert should_apply_gestation_correction(self.BIRTH, on, 36, 6) is True
-        assert should_apply_gestation_correction(self.BIRTH, on, 37, 0) is False
+    def test_who_term_is_chronological(self):
+        on = date(2024, 7, 1)
+        assert library_corrected_age("who", self.BIRTH, on, 38) == (on - self.BIRTH).days / 365.25
 
 
 class TestCalculateBoydBsa:

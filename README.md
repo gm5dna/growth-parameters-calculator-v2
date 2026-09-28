@@ -16,7 +16,7 @@ A stateless, single-page web application for NHS clinicians to calculate paediat
 - **Body surface area** (Boyd formula + cBNF lookup fallback)
 - **Growth hormone dose calculator** with adjustable daily dose and three output formats
 - **BMI percentage of median** for nutritional status assessment
-- **Preterm gestation correction** (automatic based on gestational age)
+- **Gestation correction** at all ages (per RCPCH; CDC/WHO follow the library's exceptions)
 - **PDF report export** with embedded growth charts, measurement tables, and clinical summary
 - **Clipboard copy** — one-click plain text clinical summary for pasting into EHR/notes
 - **Chart PNG download** at 2x resolution

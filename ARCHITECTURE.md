@@ -19,8 +19,8 @@ The main calculation path is shared:
 - `models.py` wraps the mandatory `rcpchgrowth` library for growth reference
   calculations, SDS, centiles, and supported measurement checks.
 - `calculations.py` contains derived calculations such as age, BSA, gestation
-  correction (which stops at *corrected* age 1 year for 32-36 weeks, 2 years for
-  <32 weeks), height velocity, and growth hormone dose helpers.
+  correction (applied at all ages per RCPCH via `rcpchgrowth`, which itself
+  makes the CDC/WHO exceptions), height velocity, and growth hormone dose helpers.
 
 PDF export deliberately recalculates from the submitted measurement inputs and
 ignores any client-supplied result objects.

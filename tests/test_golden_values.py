@@ -4,6 +4,8 @@ These catch drift when rcpchgrowth is upgraded (reference data, LMS lookup,
 gestation correction). Expected values were recorded from rcpchgrowth 4.6.4
 through /calculate and re-verified unchanged on 4.6.5. If one fails after an upgrade, check the library's
 changelog and confirm the new value is intended before updating it here.
+Values reflect gestation correction throughout childhood per RCPCH (28/09/2026);
+no expected value changed with that rule.
 """
 import pytest
 

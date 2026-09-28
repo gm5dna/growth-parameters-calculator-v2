@@ -1,6 +1,6 @@
 """Tests for the code-review fixes.
 
-Covers corrected-age cut-off, warn-and-skip, H5, M1-M5, L2-L5, L13, SDS
+Covers previous-measurement corrected age, warn-and-skip, H5, M1-M5, L2-L5, L13, SDS
 boundaries and the top-level error handlers.
 """
 import pytest
@@ -110,18 +110,17 @@ class TestVelocityInterval:
         assert calculate_height_velocity(100, 95, 122)["value"] is not None
 
 
-class TestGestationCutoffEndpoint:
-    def test_correction_flag_at_corrected_birthday(self, client):
-        # 34+0 born 2024-01-01: 1st corrected birthday 2025-02-12.
-        def flag(day):
-            r = client.post("/calculate", json={
-                "sex": "male", "birth_date": "2024-01-01", "measurement_date": day,
-                "gestation_weeks": 34, "gestation_days": 0, "weight": 10.0,
-            })
-            assert r.status_code == 200
-            return r.get_json()["results"]["gestation_correction_applied"]
-        assert flag("2025-02-11") is True
-        assert flag("2025-02-12") is False
+class TestGestationPreviousMeasurements:
+    def test_previous_measurements_follow_library_rule(self, client):
+        # 28+0 on UK-WHO: previous height at 5 y is still gestation-corrected.
+        r = client.post("/calculate", json={
+            "sex": "male", "birth_date": "2018-01-01", "measurement_date": "2026-01-01",
+            "gestation_weeks": 28, "height": 130,
+            "previous_measurements": [{"date": "2023-01-01", "height": 105}],
+        })
+        assert r.status_code == 200
+        prev = r.get_json()["results"]["previous_measurements"][0]
+        assert prev["corrected_age"] < prev["age"]
 
 
 class TestInputTypeGuards:
