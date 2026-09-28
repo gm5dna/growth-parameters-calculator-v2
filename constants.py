@@ -24,7 +24,6 @@ MAX_BONE_AGE_YEARS = 20.0
 # Gestation
 MIN_GESTATION_WEEKS = 22
 MAX_GESTATION_WEEKS = 44
-PRETERM_THRESHOLD_WEEKS = 37
 
 # Valid values
 VALID_REFERENCES = {"uk-who", "turners-syndrome", "trisomy-21", "cdc", "who", "trisomy-21-aap"}

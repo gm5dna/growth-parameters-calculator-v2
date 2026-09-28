@@ -6,7 +6,6 @@ from dateutil.relativedelta import relativedelta
 from constants import (
     CBNF_BSA_TABLE,
     GH_STANDARD_DOSE_MG_M2_WEEK,
-    PRETERM_THRESHOLD_WEEKS,
     VELOCITY_MIN_INTERVAL_DAYS,
     ErrorCodes,
 )
@@ -41,7 +40,7 @@ def calculate_calendar_age(birth_date, measurement_date):
 
 
 def expected_delivery_date(birth_date, gestation_weeks, gestation_days):
-    """Return the would-be term (40-week) birth date for a preterm infant.
+    """Return the would-be term (40-week) birth date for a baby born before 40 weeks.
 
     A baby born at gestation_weeks+gestation_days reaches term this many
     weeks/days after its actual birth date; corrected age is measured from
@@ -50,24 +49,22 @@ def expected_delivery_date(birth_date, gestation_weeks, gestation_days):
     return birth_date + relativedelta(weeks=(40 - gestation_weeks), days=-gestation_days)
 
 
-def should_apply_gestation_correction(birth_date, measurement_date, gestation_weeks, gestation_days=0):
-    """Determine whether gestation correction should be applied.
+def library_corrected_age(reference, birth_date, on_date, gestation_weeks, gestation_days=0):
+    """Decimal age rcpchgrowth will use: corrected for gestation at every age (RCPCH).
 
-    Per RCPCH (https://growth.rcpch.ac.uk/clinician/date-age-calculations/)
-    correction applies when gestation < 37 weeks AND the child is still under
-    the cut-off in CORRECTED years (i.e. up to the corrected birthday):
-    - 32-36 weeks: until 1 year corrected age
-    - < 32 weeks: until 2 years corrected age
-    A measurement before the expected delivery date (negative corrected age)
-    is still corrected.
+    Mirrors rcpchgrowth.Measurement for the reference-support check, incl. its
+    CDC/WHO exceptions (37-42 wk treated as term; preterm correction stops at
+    corrected age 2). Negative for very preterm infants before their EDD.
     """
-    if gestation_weeks is None or gestation_weeks >= PRETERM_THRESHOLD_WEEKS:
-        return False
-    edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
-    if measurement_date < edd:
-        return True
-    corrected_years = relativedelta(measurement_date, edd).years
-    return corrected_years < (1 if gestation_weeks >= 32 else 2)
+    age = (on_date - birth_date).days / 365.25
+    if not gestation_weeks:
+        return age
+    corrected = (on_date - expected_delivery_date(birth_date, gestation_weeks, gestation_days)).days / 365.25
+    if reference in ("cdc", "who") and (
+        (corrected >= 2 and gestation_weeks < 37) or 37 <= gestation_weeks <= 42
+    ):
+        return age
+    return corrected
 
 
 def calculate_boyd_bsa(weight_kg, height_cm):

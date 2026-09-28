@@ -18,7 +18,7 @@ from calculations import (
     calculate_gh_dose,
     calculate_height_velocity,
     expected_delivery_date,
-    should_apply_gestation_correction,
+    library_corrected_age,
 )
 from constants import (
     BONE_AGE_WINDOW_DAYS,
@@ -206,40 +206,17 @@ def perform_calculation(data):
         )
     age_calendar = calculate_calendar_age(birth_date, measurement_date)
 
-    correction_applied = should_apply_gestation_correction(
-        birth_date,
-        measurement_date,
-        gestation_weeks if gestation_weeks > 0 else None,
-        gestation_days,
+    # rcpchgrowth applies gestation correction at every age (RCPCH), with its
+    # own CDC/WHO exceptions. Gestation is always passed through; the effective
+    # age used for reference-support checks mirrors the library's corrected age.
+    effective_age_years = library_corrected_age(
+        reference, birth_date, measurement_date, gestation_weeks, gestation_days
     )
-
-    # Gestation actually passed to rcpchgrowth for the current measurement.
-    # rcpchgrowth always reads the corrected-age centile/SDS when a preterm
-    # gestation is supplied (for UK-WHO/Turner/Trisomy-21 it never resets to
-    # chronological), so we must withhold gestation once correction no longer
-    # applies — otherwise a child past the 1-/2-year cutoff, or a term
-    # gestation entered for reference, would be reported on corrected age.
-    # Passing 0 makes corrected == chronological, so extract_measurement_result
-    # returns the chronological figures.
-    calc_gestation_weeks = gestation_weeks if correction_applied else 0
-    calc_gestation_days = gestation_days if correction_applied else 0
-
-    # Effective age for reference support lookups: corrected when applicable,
-    # since rcpchgrowth performs its internal centile lookup against the
-    # corrected age in that case. A very preterm infant measured before its
-    # expected delivery date has a NEGATIVE corrected age but valid preterm
-    # reference data, so compute directly rather than via calculate_age_in_years
-    # (which forbids the edd-after-measurement ordering).
-    if correction_applied:
-        edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
-        effective_age_years = (measurement_date - edd).days / 365.25
-    else:
-        effective_age_years = age_years
 
     results = {
         "age_years": round(age_years, 4),
         "age_calendar": age_calendar,
-        "gestation_correction_applied": correction_applied,
+        "gestation_correction_applied": False,
         "validation_messages": [],
     }
 
@@ -256,22 +233,23 @@ def perform_calculation(data):
             measurement_method=method,
             observation_value=value,
             reference=reference,
-            gestation_weeks=calc_gestation_weeks,
-            gestation_days=calc_gestation_days,
+            gestation_weeks=gestation_weeks,
+            gestation_days=gestation_days,
         )
         extracted = extract_measurement_result(measurement_result, value, method)
         all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
         results[method] = extracted
         if first_measurement is None:
             first_measurement = measurement_result
-
-        if correction_applied and "corrected_age_years" not in results:
+            # Report what rcpchgrowth actually did, not a re-derived rule.
             dates = measurement_result["measurement_dates"]
-            results["corrected_age_years"] = round(dates["corrected_decimal_age"], 4)
-            # rcpchgrowth returns corrected_calendar_age as a string;
-            # compute a dict to match our API contract (PRD-02 section 8.1)
-            edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
-            results["corrected_age_calendar"] = calculate_calendar_age(edd, measurement_date)
+            if abs(dates["corrected_decimal_age"] - dates["chronological_decimal_age"]) > 1e-9:
+                results["gestation_correction_applied"] = True
+                results["corrected_age_years"] = round(dates["corrected_decimal_age"], 4)
+                # rcpchgrowth returns corrected_calendar_age as a string;
+                # compute a dict to match our API contract (PRD-02 section 8.1)
+                edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
+                results["corrected_age_calendar"] = calculate_calendar_age(edd, measurement_date)
 
     # Auto-calculate BMI when both weight and height are present.
     # Skip silently when the selected reference does not support BMI for
@@ -291,8 +269,8 @@ def perform_calculation(data):
                 measurement_method="bmi",
                 observation_value=bmi_value,
                 reference=reference,
-                gestation_weeks=calc_gestation_weeks,
-                gestation_days=calc_gestation_days,
+                gestation_weeks=gestation_weeks,
+                gestation_days=gestation_days,
             )
             bmi_extracted = extract_measurement_result(bmi_result, bmi_value, "bmi")
             all_warnings.extend(validate_measurement_sds(bmi_extracted["sds"], "bmi"))
@@ -361,22 +339,11 @@ def perform_calculation(data):
             )
         prev_age = calculate_age_in_years(birth_date, prev_date)
         prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
-        prev_correction = gestation_weeks > 0 and should_apply_gestation_correction(
-            birth_date, prev_date, gestation_weeks, gestation_days
+        prev_effective_age = library_corrected_age(
+            reference, birth_date, prev_date, gestation_weeks, gestation_days
         )
-        # Mirror the current-measurement handling: only feed gestation to
-        # rcpchgrowth (and therefore report corrected centile/SDS) while
-        # correction still applies for this previous date.
-        prev_calc_weeks = gestation_weeks if prev_correction else 0
-        prev_calc_days = gestation_days if prev_correction else 0
-        if prev_correction:
-            edd = expected_delivery_date(birth_date, gestation_weeks, gestation_days)
-            corrected_prev_age = (prev_date - edd).days / 365.25
-            if corrected_prev_age >= 0:
-                prev_result["corrected_age"] = round(corrected_prev_age, 4)
-            prev_effective_age = corrected_prev_age
-        else:
-            prev_effective_age = prev_age
+        if abs(prev_effective_age - prev_age) > 1e-9 and prev_effective_age >= 0:
+            prev_result["corrected_age"] = round(prev_effective_age, 4)
         skipped_any = False
         for method, validator in prev_validators.items():
             raw_value = entry.get(method)
@@ -391,8 +358,8 @@ def perform_calculation(data):
                 measurement_method=method,
                 observation_value=value,
                 reference=reference,
-                gestation_weeks=prev_calc_weeks,
-                gestation_days=prev_calc_days,
+                gestation_weeks=gestation_weeks,
+                gestation_days=gestation_days,
             )
             extracted = extract_measurement_result(m, value, method)
             # A previous value beyond the SDS hard limit is warned about and

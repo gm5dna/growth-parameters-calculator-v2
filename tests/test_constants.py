@@ -14,7 +14,6 @@ from constants import (
     MIN_HEIGHT_CM,
     MIN_OFC_CM,
     MIN_WEIGHT_KG,
-    PRETERM_THRESHOLD_WEEKS,
     SDS_HARD_LIMIT,
     SDS_WARNING_LIMIT,
     VALID_BONE_AGE_STANDARDS,
@@ -48,7 +47,6 @@ def test_measurement_ranges():
 def test_gestation_constants():
     assert MIN_GESTATION_WEEKS == 22
     assert MAX_GESTATION_WEEKS == 44
-    assert PRETERM_THRESHOLD_WEEKS == 37
 
 
 def test_valid_references():

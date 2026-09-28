@@ -1048,26 +1048,52 @@ class TestGestationCorrectionSemantics:
         assert r.status_code == 200, r.get_data(as_text=True)
         return r.get_json()["results"]
 
-    def test_preterm_beyond_window_returns_chronological(self, client):
-        """A 34-weeker at ~18 months is past the correction cutoff (32-36 wk -> to age 1),
-        so the reported SDS must equal the no-gestation (chronological) result, not the
-        gestation-corrected one."""
-        base = {"sex": "male", "birth_date": "2024-01-01", "measurement_date": "2025-07-01",
-                "height": 79.0, "reference": "uk-who"}
-        chrono = self._sds(client, dict(base))
-        with_gest = self._sds(client, dict(base, gestation_weeks=34, gestation_days=0))
-        assert with_gest["gestation_correction_applied"] is False
-        assert with_gest["height"]["sds"] == chrono["height"]["sds"]
-        assert with_gest["height"]["centile"] == chrono["height"]["centile"]
+    @staticmethod
+    def _library_sds(sex, birth, obs, method, value, reference, weeks):
+        from rcpchgrowth import Measurement
+        m = Measurement(sex=sex, birth_date=birth, observation_date=obs, measurement_method=method,
+                        observation_value=value, reference=reference, gestation_weeks=weeks,
+                        gestation_days=0).measurement
+        return m["measurement_calculated_values"]["corrected_sds"]
 
-    def test_term_gestation_matches_no_gestation(self, client):
-        """Entering a term gestation (38 wk) must not shift centile/SDS."""
+    def test_preterm_corrected_throughout_childhood(self, client):
+        """28 wk at chronological 5 y: corrected on UK-WHO, SDS equals the library's."""
+        from datetime import date
+        base = {"sex": "male", "birth_date": "2020-01-01", "measurement_date": "2025-01-01",
+                "height": 105.0, "reference": "uk-who"}
+        r = self._sds(client, dict(base, gestation_weeks=28))
+        assert r["gestation_correction_applied"] is True
+        assert r["height"]["sds"] == self._library_sds(
+            "male", date(2020, 1, 1), date(2025, 1, 1), "height", 105.0, "uk-who", 28)
+
+    def test_term_39_weeks_corrected_and_matches_library(self, client):
+        from datetime import date
         base = {"sex": "female", "birth_date": "2023-01-01", "measurement_date": "2023-07-01",
                 "weight": 7.0, "reference": "uk-who"}
-        chrono = self._sds(client, dict(base))
-        with_gest = self._sds(client, dict(base, gestation_weeks=38, gestation_days=0))
-        assert with_gest["gestation_correction_applied"] is False
-        assert with_gest["weight"]["sds"] == chrono["weight"]["sds"]
+        r = self._sds(client, dict(base, gestation_weeks=39, gestation_days=0))
+        assert r["gestation_correction_applied"] is True
+        assert r["weight"]["sds"] == self._library_sds(
+            "female", date(2023, 1, 1), date(2023, 7, 1), "weight", 7.0, "uk-who", 39)
+
+    def test_blank_gestation_not_applied(self, client):
+        base = {"sex": "female", "birth_date": "2023-01-01", "measurement_date": "2023-07-01",
+                "weight": 7.0, "reference": "uk-who"}
+        assert self._sds(client, base)["gestation_correction_applied"] is False
+
+    def test_cdc_preterm_beyond_corrected_age_2_not_applied(self, client):
+        # 30 wk born 2020-01-01, measured at ~5 y: library stops correcting on CDC.
+        base = {"sex": "male", "birth_date": "2020-01-01", "measurement_date": "2025-01-01",
+                "height": 105.0, "reference": "cdc"}
+        r = self._sds(client, dict(base, gestation_weeks=30))
+        assert r["gestation_correction_applied"] is False
+        assert r["height"]["sds"] == self._sds(client, base)["height"]["sds"]
+
+    def test_who_38_weeks_not_applied(self, client):
+        base = {"sex": "male", "birth_date": "2023-01-01", "measurement_date": "2023-07-01",
+                "weight": 8.0, "reference": "who"}
+        r = self._sds(client, dict(base, gestation_weeks=38))
+        assert r["gestation_correction_applied"] is False
+        assert r["weight"]["sds"] == self._sds(client, base)["weight"]["sds"]
 
     def test_preterm_within_window_is_corrected(self, client):
         """A 32-weeker at ~6 months IS within the correction window; corrected age present
