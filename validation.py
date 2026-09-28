@@ -60,6 +60,11 @@ def _validate_numeric_range(value, min_val, max_val, name, error_code):
     """Validate an optional numeric field. Returns float or None."""
     if value is None or value == "":
         return None
+    if isinstance(value, bool):  # bool is a subclass of int — reject explicitly
+        raise ValidationError(
+            f"{name} must be a number.",
+            error_code,
+        )
     try:
         value = float(value)
     except (TypeError, ValueError):
@@ -178,7 +183,7 @@ def validate_object_list(value, field_label, max_items):
 
 
 def validate_sex(value):
-    if not value or value not in VALID_SEXES:
+    if not isinstance(value, str) or value not in VALID_SEXES:
         raise ValidationError(
             "Sex must be 'male' or 'female'.",
             ErrorCodes.INVALID_INPUT,
@@ -189,7 +194,7 @@ def validate_sex(value):
 def validate_reference(value):
     if value is None:
         return DEFAULT_REFERENCE
-    if value not in VALID_REFERENCES:
+    if not isinstance(value, str) or value not in VALID_REFERENCES:
         raise ValidationError(
             f"Reference must be one of: {', '.join(sorted(VALID_REFERENCES))}.",
             ErrorCodes.INVALID_INPUT,
@@ -264,7 +269,7 @@ def validate_bone_age_standard(value):
     """Validate the bone-age standard. Returns the normalised value."""
     if value is None or value == "":
         return "gp"
-    if value not in VALID_BONE_AGE_STANDARDS:
+    if not isinstance(value, str) or value not in VALID_BONE_AGE_STANDARDS:
         raise ValidationError(
             f"Bone age standard must be one of: {', '.join(sorted(VALID_BONE_AGE_STANDARDS))}.",
             ErrorCodes.INVALID_INPUT,

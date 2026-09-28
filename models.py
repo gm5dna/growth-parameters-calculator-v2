@@ -67,12 +67,10 @@ def validate_measurement_sds(sds, measurement_method):
     hard_limit = BMI_SDS_HARD_LIMIT if measurement_method == "bmi" else SDS_HARD_LIMIT
     abs_sds = abs(sds)
 
-    # Intentional: exceeding the hard limit raises, which aborts the ENTIRE
-    # request (current and previous measurements alike) rather than dropping
-    # only the offending value. This is a deliberate clinical-safety choice —
-    # a physiologically implausible SDS forces the user to correct the input
-    # before any output is produced. Do not soften to a per-measurement skip
-    # without a product decision.
+    # Exceeding the hard limit raises. For the CURRENT measurement this aborts
+    # the request (the user must correct the input before any output). For
+    # PREVIOUS measurements the caller (app.perform_calculation) catches it,
+    # warns naming the date and skips that point instead (consultant decision).
     if abs_sds > hard_limit:
         raise SdsOutOfRangeError(
             f"SDS ({sds:.1f}) exceeds acceptable range "

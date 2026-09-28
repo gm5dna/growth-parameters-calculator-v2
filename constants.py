@@ -88,8 +88,12 @@ REFERENCE_CAPABILITIES = {
         "methods": {"height", "weight", "ofc", "bmi"},
         "min_age": -0.33,  # ~23 weeks gestation
         "max_age": 20.0,
+        # Lower bounds mirror rcpchgrowth uk_who.py reference_data_absent() and
+        # constants/age_constants.py: TWENTY_FIVE_WEEKS_GESTATION (length) and
+        # FORTY_TWO_WEEKS_GESTATION (BMI, i.e. 14 days of age).
         "method_age_overrides": {
-            "bmi": (0.04, 20.0),       # ~42 weeks gestation (term) and above
+            "height": (-(40 * 7 - 25 * 7) / 365.25, 20.0),  # 25 weeks gestation
+            "bmi": (14 / 365.25, 20.0),  # 42 weeks gestation = 14 days of age
             "ofc_male": (-0.33, 18.0),
             "ofc_female": (-0.33, 17.0),
         },

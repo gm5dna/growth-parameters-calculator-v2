@@ -1,5 +1,6 @@
 """Flask application — routes and orchestration."""
 import logging
+import math
 import os
 from datetime import datetime as dt
 from datetime import timedelta
@@ -21,9 +22,12 @@ from calculations import (
 )
 from constants import (
     BONE_AGE_WINDOW_DAYS,
+    CBNF_BSA_TABLE,
     MAX_AGE_YEARS,
     MAX_BONE_AGE_ASSESSMENTS,
     MAX_PREVIOUS_MEASUREMENTS,
+    SDS_HARD_LIMIT,
+    SDS_WARNING_LIMIT,
     VALID_MEASUREMENT_METHODS,
     VELOCITY_MIN_INTERVAL_DAYS,
     ErrorCodes,
@@ -71,9 +75,21 @@ app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_BYTES", 10 * 1
 
 _RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
 
+def _rate_limit_key():
+    """Rate-limit per real client, not per proxy.
+
+    Production runs behind a cloudflared container on the same Docker network,
+    so request.remote_addr is the tunnel's IP for every user. Cloudflare sets
+    CF-Connecting-IP to the real client. That header is only trustworthy while
+    the tunnel is the sole ingress: port 8080 must NOT be exposed beyond the
+    tunnel, otherwise a client could spoof the header to dodge the limit.
+    """
+    return request.headers.get("CF-Connecting-IP") or get_remote_address()
+
+
 limiter = Limiter(
     app=app,
-    key_func=get_remote_address,
+    key_func=_rate_limit_key,
     # Shared Redis storage in multi-worker prod; memory:// is fine for single
     # worker / dev. Configure with RATELIMIT_STORAGE_URI.
     storage_uri=_RATELIMIT_STORAGE_URI,
@@ -129,6 +145,8 @@ _MAX_CHART_IMAGES = int(os.environ.get("MAX_CHART_IMAGES", 10))
 # Only these chart keys are embedded in the PDF. Any other client-supplied key
 # is discarded (without logging the raw key, which could carry accidental PHI)
 # rather than turned into a chart label.
+_MAX_SELECTED_GH_DOSE_MG = 20.0
+
 _ALLOWED_CHART_KEYS = frozenset({"height", "weight", "bmi", "ofc"})
 
 
@@ -162,6 +180,7 @@ _CSP_POLICY = "; ".join([
 def _set_security_headers(response):
     response.headers.setdefault("Content-Security-Policy", _CSP_POLICY)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return response
 
@@ -225,8 +244,10 @@ def perform_calculation(data):
     age_calendar = calculate_calendar_age(birth_date, measurement_date)
 
     correction_applied = should_apply_gestation_correction(
+        birth_date,
+        measurement_date,
         gestation_weeks if gestation_weeks > 0 else None,
-        age_years,
+        gestation_days,
     )
 
     # Gestation actually passed to rcpchgrowth for the current measurement.
@@ -329,6 +350,13 @@ def perform_calculation(data):
         else:
             bsa_value = calculate_cbnf_bsa(weight)
             results["bsa"] = {"value": bsa_value, "method": "cBNF"}
+            table_min, table_max = CBNF_BSA_TABLE[0][0], CBNF_BSA_TABLE[-1][0]
+            if weight < table_min or weight > table_max:
+                all_warnings.append(
+                    f"Weight-only BSA: {weight:g} kg is outside the cBNF table "
+                    f"({table_min}-{table_max} kg); BSA has been clamped to the "
+                    f"table limit ({bsa_value} m\u00b2)."
+                )
 
     if data.get("gh_treatment") and bsa_value is not None:
         results["gh_dose"] = calculate_gh_dose(bsa_value)
@@ -354,6 +382,7 @@ def perform_calculation(data):
         MAX_PREVIOUS_MEASUREMENTS,
     )
     processed_prev = []
+    prev_dates = []
     for entry in previous_measurements:
         prev_date_str = entry.get("date", "")
         prev_date = validate_date(prev_date_str, "previous measurement date")
@@ -370,7 +399,7 @@ def perform_calculation(data):
         prev_age = calculate_age_in_years(birth_date, prev_date)
         prev_result = {"date": prev_date_str, "age": round(prev_age, 4)}
         prev_correction = gestation_weeks > 0 and should_apply_gestation_correction(
-            gestation_weeks, prev_age
+            birth_date, prev_date, gestation_weeks, gestation_days
         )
         # Mirror the current-measurement handling: only feed gestation to
         # rcpchgrowth (and therefore report corrected centile/SDS) while
@@ -385,6 +414,7 @@ def perform_calculation(data):
             prev_effective_age = corrected_prev_age
         else:
             prev_effective_age = prev_age
+        skipped_any = False
         for method, validator in prev_validators.items():
             raw_value = entry.get(method)
             if raw_value is None or raw_value == "":
@@ -402,33 +432,48 @@ def perform_calculation(data):
                 gestation_days=prev_calc_days,
             )
             extracted = extract_measurement_result(m, value, method)
-            all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
+            # A previous value beyond the SDS hard limit is warned about and
+            # skipped (excluded from velocity and the returned previous
+            # points) rather than aborting the whole request — a historical
+            # data-entry error should not block the current calculation.
+            try:
+                all_warnings.extend(validate_measurement_sds(extracted["sds"], method))
+            except SdsOutOfRangeError as e:
+                all_warnings.append(
+                    f"Previous {method} measurement on {prev_date.isoformat()} "
+                    f"was excluded: {e}"
+                )
+                skipped_any = True
+                continue
             prev_result[method] = extracted
+        if skipped_any and not any(m in prev_result for m in prev_validators):
+            continue
         processed_prev.append(prev_result)
+        prev_dates.append(prev_date)
 
     if processed_prev:
         results["previous_measurements"] = processed_prev
 
     if height is not None and processed_prev:
-        prev_with_height = [p for p in processed_prev if "height" in p]
+        prev_with_height = [
+            (p, d) for p, d in zip(processed_prev, prev_dates, strict=True) if "height" in p
+        ]
         if prev_with_height:
             # PRD-04 §4.6: use the most recent previous height that is at least
             # the minimum interval away — a too-recent measurement must not mask
             # an older valid one. Sort newest-first, then prefer the newest
             # entry that clears VELOCITY_MIN_INTERVAL_DAYS.
-            prev_with_height.sort(key=lambda p: p["date"], reverse=True)
-            dated = [
-                (p, (measurement_date - dt.strptime(p["date"], "%Y-%m-%d").date()).days)
-                for p in prev_with_height
-            ]
-            eligible = [(p, d) for p, d in dated if d >= VELOCITY_MIN_INTERVAL_DAYS]
+            prev_with_height.sort(key=lambda pd: pd[1], reverse=True)
+            # Reuse the already-parsed (stripped) date; never re-parse the raw string.
+            dated = [(p, d, (measurement_date - d).days) for p, d in prev_with_height]
+            eligible = [x for x in dated if x[2] >= VELOCITY_MIN_INTERVAL_DAYS]
             # Fall back to the closest measurement only when none qualify, so
             # calculate_height_velocity can surface the real (too-short) interval.
-            chosen, interval = eligible[0] if eligible else dated[0]
+            chosen, chosen_date, interval = eligible[0] if eligible else dated[0]
             velocity = calculate_height_velocity(
                 height, chosen["height"]["value"], interval
             )
-            velocity["based_on_date"] = chosen["date"]
+            velocity["based_on_date"] = chosen_date.isoformat()
             results["height_velocity"] = velocity
 
     bone_age_assessments = validate_object_list(
@@ -481,6 +526,19 @@ def perform_calculation(data):
                     reference=reference,
                 )
                 ba_extracted = extract_measurement_result(ba_measurement, height, "height")
+                # Not a hard reject: extreme height-for-bone-age SDS can be real
+                # (e.g. skeletal dysplasia), so warn and still return results.
+                ba_sds = ba_extracted["sds"]
+                if abs(ba_sds) > SDS_HARD_LIMIT:
+                    all_warnings.append(
+                        f"Height SDS for bone age is {ba_sds:+.1f} \u2014 outside "
+                        f"\u00b1{SDS_HARD_LIMIT:g} SDS; check bone age and height."
+                    )
+                elif abs(ba_sds) > SDS_WARNING_LIMIT:
+                    all_warnings.append(
+                        f"Height SDS for bone age is very extreme ({ba_sds:+.1f} SDS). "
+                        "Please verify bone age and height."
+                    )
 
                 bone_age_result = {
                     "bone_age": ba_value,
@@ -493,8 +551,13 @@ def perform_calculation(data):
                     "within_window": within_window,
                 }
                 break
-            except (ValidationError, UnsupportedCalculationError):
-                raise
+            except (ValidationError, UnsupportedCalculationError) as e:
+                if e.code != ErrorCodes.UNSUPPORTED_REFERENCE:
+                    raise
+                # Reference/age cannot support bone-age height: warn and skip
+                # rather than abort an otherwise valid calculation.
+                all_warnings.append(f"Height for bone age not calculated: {e.message}")
+                continue
             except Exception:
                 # Skip this single assessment but record WHY — masking an
                 # rcpchgrowth contract change or arithmetic error behind the
@@ -595,7 +658,7 @@ def chart_data():
         reference = validate_reference(data.get("reference"))
 
         measurement_method = data.get("measurement_method")
-        if not measurement_method or measurement_method not in VALID_MEASUREMENT_METHODS:
+        if not isinstance(measurement_method, str) or measurement_method not in VALID_MEASUREMENT_METHODS:
             raise ValidationError(
                 f"measurement_method must be one of: {', '.join(sorted(VALID_MEASUREMENT_METHODS))}.",
                 ErrorCodes.INVALID_INPUT,
@@ -638,6 +701,21 @@ def export_pdf():
             "patient_info must be an object.", ErrorCodes.INVALID_INPUT
         )), 400
 
+    # Optional pen-rounded daily GH dose chosen on screen; display-only, so
+    # validate the shape here but never let it drive any calculation.
+    selected_dose = data.get("gh_selected_daily_dose_mg")
+    if selected_dose is not None and (
+        isinstance(selected_dose, bool)
+        or not isinstance(selected_dose, (int, float))
+        or not math.isfinite(selected_dose)
+        or not 0 < selected_dose <= _MAX_SELECTED_GH_DOSE_MG
+    ):
+        return jsonify(format_error_response(
+            f"gh_selected_daily_dose_mg must be a number greater than 0 and at most "
+            f"{_MAX_SELECTED_GH_DOSE_MG:g}.",
+            ErrorCodes.INVALID_INPUT,
+        )), 400
+
     chart_images = data.get("chart_images", {})
     if not isinstance(chart_images, dict):
         return jsonify(format_error_response(
@@ -660,6 +738,9 @@ def export_pdf():
     except Exception as e:
         body, status = _handle_calculation_exception(e)
         return jsonify(body), status
+
+    if selected_dose is not None and isinstance(results.get("gh_dose"), dict):
+        results["gh_dose"]["selected_daily_dose_mg"] = float(selected_dose)
 
     patient = results.pop("_patient", None)
     if patient is None:

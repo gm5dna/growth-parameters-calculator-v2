@@ -464,8 +464,16 @@ class GrowthReportPDF:
         # GH dose
         gh = self.results.get("gh_dose")
         if gh and isinstance(gh, dict):
+            selected = gh.get("selected_daily_dose_mg")
             daily = gh.get("initial_daily_dose")
-            if daily is not None:
+            if selected is not None:
+                # Pen-rounded dose chosen on screen — state it as the daily dose.
+                items.append(
+                    f"\u2022 <b>GH dose:</b> Selected daily dose (pen-rounded): "
+                    f"{self._fmt_value(selected, 2)} mg/day "
+                    f"({self._fmt_value(selected * 7, 2)} mg/week)"
+                )
+            elif daily is not None:
                 daily_str = self._fmt_value(daily, 1)
                 weekly_str = self._fmt_value(daily * 7, 1)
                 items.append(
