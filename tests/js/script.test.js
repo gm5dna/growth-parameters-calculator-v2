@@ -284,6 +284,22 @@ describe('calculate request sequencing', () => {
     delete global.fetch;
   });
 
+  test('H1: switching mode recalculates (toggle is outside the form)', async () => {
+    const { handleModeToggle } = await import('../../static/script.mjs');
+    const toggle = document.createElement('input');
+    toggle.type = 'checkbox';
+    toggle.id = 'modeToggle';
+    document.body.appendChild(toggle);
+
+    handleModeToggle();
+    jest.advanceTimersByTime(900);
+    await Promise.resolve();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    toggle.remove();
+    localStorage.clear(); // handleModeToggle's debounced save would leak into later restores
+  });
+
   test('manual submit cancels a pending auto-calculate', async () => {
     __testHooks.resetCalculateState();
     __testHooks.scheduleAutoCalculate();

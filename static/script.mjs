@@ -247,6 +247,9 @@ function handleModeToggle() {
     labels[1].classList.toggle('active-label', toggle.checked);
   }
   debouncedSave();
+  // The toggle sits outside the form, so recalculate here: results shown
+  // must reflect what the current mode submits (review H1).
+  debouncedAutoCalc();
 }
 
 /* ------------------------------------------------------------------ */
