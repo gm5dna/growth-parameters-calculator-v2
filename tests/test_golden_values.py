@@ -2,7 +2,7 @@
 
 These catch drift when rcpchgrowth is upgraded (reference data, LMS lookup,
 gestation correction). Expected values were recorded from rcpchgrowth 4.6.4
-through /calculate. If one fails after an upgrade, check the library's
+through /calculate and re-verified unchanged on 4.6.5. If one fails after an upgrade, check the library's
 changelog and confirm the new value is intended before updating it here.
 """
 import pytest
