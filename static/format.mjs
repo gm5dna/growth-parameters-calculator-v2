@@ -33,3 +33,15 @@ export function formatReferenceName(slug) {
   const key = slug || 'uk-who';
   return REFERENCE_NAMES[key] || key.toUpperCase();
 }
+
+// Local calendar date as YYYY-MM-DD. Must NOT use toISOString(), which returns
+// the UTC date — for a clinician east of UTC just after midnight that is
+// yesterday, shifting the default measurement date (and thus age/centile) by a
+// day. Built from local getFullYear/getMonth/getDate instead.
+export function localDateString(d) {
+  var date = d || new Date();
+  var y = date.getFullYear();
+  var m = String(date.getMonth() + 1).padStart(2, '0');
+  var day = String(date.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}

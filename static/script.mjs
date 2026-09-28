@@ -16,12 +16,13 @@ import {
   validateAtLeastOneMeasurement,
 } from './validation.mjs';
 import { copyResultsToClipboard } from './clipboard.mjs';
-import { formatCentile, formatSds } from './format.mjs';
+import { formatCentile, formatSds, localDateString } from './format.mjs';
 import {
   captureChartImages,
   destroyChart,
   downloadChart,
   loadAndRenderChart,
+  renderAgeRangeSelector,
   showCharts,
 } from './charts.mjs';
 import { appState, resetAppState } from './state.mjs';
@@ -63,18 +64,6 @@ function debounce(fn, delay) {
   return debounced;
 }
 
-// Local calendar date as YYYY-MM-DD. Must NOT use toISOString(), which returns
-// the UTC date — for a clinician east of UTC just after midnight that is
-// yesterday, shifting the default measurement date (and thus age/centile) by a
-// day. Built from local getFullYear/getMonth/getDate instead.
-function localDateString(d) {
-  var date = d || new Date();
-  var y = date.getFullYear();
-  var m = String(date.getMonth() + 1).padStart(2, '0');
-  var day = String(date.getDate()).padStart(2, '0');
-  return y + '-' + m + '-' + day;
-}
-
 function showToast(message) {
     var toastEl = document.getElementById('toast');
     if (!toastEl) return;
@@ -91,12 +80,24 @@ function showToast(message) {
 /*  Copy & PDF export handlers                                        */
 /* ------------------------------------------------------------------ */
 
+// The pen-rounded/adjusted dose shown on screen, or null when the GH
+// calculator is not visible. Single source for clipboard and PDF (review M5).
+function getShownGhDose() {
+    var ghCalc = document.getElementById('ghCalculator');
+    if (!ghCalc || ghCalc.hidden || !(currentGhDose > 0)) return null;
+    return currentGhDose;
+}
+
 async function handleCopyResults() {
     if (!appState.lastResults) return;
+    var penSel = document.getElementById('ghPenDevice');
     var patientInfo = {
         sex: appState.lastPayload ? appState.lastPayload.sex : '',
         reference: appState.lastPayload ? appState.lastPayload.reference || 'uk-who' : 'uk-who',
         weight: appState.lastPayload ? appState.lastPayload.weight : null,
+        gh_selected_dose: getShownGhDose(),
+        gh_pen_label: penSel && penSel.selectedOptions && penSel.selectedOptions[0]
+            ? penSel.selectedOptions[0].textContent.trim() : '',
     };
     var success = await copyResultsToClipboard(appState.lastResults, patientInfo);
     showToast(success ? 'Results copied to clipboard' : 'Copy failed \u2014 please copy manually');
@@ -104,10 +105,13 @@ async function handleCopyResults() {
 
 function buildExportPdfPayload(chartImages) {
     if (!appState.lastPayload) return null;
-    return Object.assign({}, appState.lastPayload, {
+    var payload = Object.assign({}, appState.lastPayload, {
         patient_info: {},
         chart_images: chartImages || {},
     });
+    var ghDose = getShownGhDose();
+    if (ghDose !== null) payload.gh_selected_daily_dose_mg = ghDose;
+    return payload;
 }
 
 async function handleExportPdf() {
@@ -532,6 +536,10 @@ function toggleCollapsible(toggleEl, contentEl) {
 /*  Form data gathering                                               */
 /* ------------------------------------------------------------------ */
 
+function isAdvancedMode() {
+  return document.body.classList.contains('advanced-mode');
+}
+
 function gatherFormData() {
   const payload = {
     sex: document.querySelector('input[name="sex"]:checked')?.value || '',
@@ -548,6 +556,10 @@ function gatherFormData() {
   const ofc = document.getElementById('ofc').value;
   if (ofc) payload.ofc = parseFloat(ofc);
 
+  // Basic mode hides .advanced-only fields: never submit them (the user's
+  // advanced values are kept in the DOM, just not sent).
+  if (!isAdvancedMode()) return payload;
+
   const maternalHeight = document.getElementById('maternalHeight').value;
   if (maternalHeight) payload.maternal_height = parseFloat(maternalHeight);
 
@@ -555,10 +567,10 @@ function gatherFormData() {
   if (paternalHeight) payload.paternal_height = parseFloat(paternalHeight);
 
   const gestWeeks = document.getElementById('gestationWeeks')?.value;
-  if (gestWeeks) payload.gestation_weeks = parseInt(gestWeeks);
+  if (gestWeeks) payload.gestation_weeks = Number(gestWeeks);
 
   const gestDays = document.getElementById('gestationDays')?.value;
-  if (gestDays) payload.gestation_days = parseInt(gestDays);
+  if (gestDays) payload.gestation_days = Number(gestDays);
 
   const reference = document.getElementById('reference')?.value;
   if (reference) payload.reference = reference;
@@ -623,15 +635,30 @@ function runClientValidation(payload) {
 
   // Parental height limits come from the server (rcpchgrowth's +/-8 SDS adult
   // range) via the inputs' min/max attributes.
-  [['maternalHeight', 'Maternal height'], ['paternalHeight', 'Paternal height']].forEach(function (pair) {
-    const input = document.getElementById(pair[0]);
-    if (!input) return;
-    const err = validateNumericRange(input.value, Number(input.min), Number(input.max), pair[1]);
-    if (err) {
-      showFieldError(pair[0] + 'Error', err);
+  if (isAdvancedMode()) {
+    [['maternalHeight', 'Maternal height'], ['paternalHeight', 'Paternal height']].forEach(function (pair) {
+      const input = document.getElementById(pair[0]);
+      if (!input) return;
+      const err = validateNumericRange(input.value, Number(input.min), Number(input.max), pair[1]);
+      if (err) {
+        showFieldError(pair[0] + 'Error', err);
+        hasError = true;
+      }
+    });
+
+    // Gestation: whole weeks 22-44 (matches constants.py), whole days 0-6.
+    const gw = document.getElementById('gestationWeeks')?.value || '';
+    const gd = document.getElementById('gestationDays')?.value || '';
+    const wErr = validateNumericRange(gw, 22, 44, 'Gestation weeks') ||
+      (gw !== '' && !Number.isInteger(Number(gw)) ? 'Gestation weeks must be a whole number.' : null);
+    const dErr = validateNumericRange(gd, 0, 6, 'Gestation days') ||
+      (gd !== '' && !Number.isInteger(Number(gd)) ? 'Gestation days must be a whole number.' : null);
+    const gErr = wErr || dErr || (gd !== '' && gw === '' ? 'Gestation weeks are required when days are given.' : null);
+    if (gErr) {
+      showFieldError('gestationError', gErr);
       hasError = true;
     }
-  });
+  }
 
   const atLeastOneErr = validateAtLeastOneMeasurement(
     document.getElementById('weight').value,
@@ -644,12 +671,26 @@ function runClientValidation(payload) {
     hasError = true;
   }
 
-  return !hasError;
+  if (!hasError) return true;
+  const firstInvalid = document.querySelector('[aria-invalid="true"]');
+  if (firstInvalid && firstInvalid.focus) firstInvalid.focus();
+  return false;
+}
+
+// Map an error span id to the input(s) it describes (aria-invalid / focus).
+function fieldsForError(id) {
+  if (id === 'sexError') return Array.from(document.querySelectorAll('input[name="sex"]'));
+  if (id === 'gestationError') {
+    return ['gestationWeeks', 'gestationDays'].map(function (i) { return document.getElementById(i); }).filter(Boolean);
+  }
+  const input = document.getElementById(id.replace(/Error$/, ''));
+  return input ? [input] : [];
 }
 
 function showFieldError(id, message) {
   const el = document.getElementById(id);
   if (el) el.textContent = message;
+  fieldsForError(id).forEach(function (f) { f.setAttribute('aria-invalid', 'true'); });
 }
 
 function clearFieldErrors() {
@@ -662,10 +703,12 @@ function clearFieldErrors() {
     'ofcError',
     'maternalHeightError',
     'paternalHeightError',
+    'gestationError',
   ];
   errorIds.forEach(function (id) {
     const el = document.getElementById(id);
     if (el) el.textContent = '';
+    fieldsForError(id).forEach(function (f) { f.removeAttribute('aria-invalid'); });
   });
 }
 
@@ -688,6 +731,7 @@ async function handleSubmit(event) {
 
   // Client-side validation (UX only)
   if (!runClientValidation(payload)) {
+    clearStaleResults();
     return;
   }
 
@@ -706,13 +750,25 @@ async function handleSubmit(event) {
       body: JSON.stringify(payload),
     });
 
-    const data = await response.json();
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = null;
+    }
 
     if (requestId !== activeCalculateRequestId) {
       return;
     }
 
+    if (!data) {
+      clearStaleResults();
+      showError('Server returned ' + response.status + ' \u2014 please wait and try again.');
+      return;
+    }
+
     if (!data.success) {
+      clearStaleResults();
       showError(data.error || 'An unknown error occurred.');
       return;
     }
@@ -725,6 +781,20 @@ async function handleSubmit(event) {
       setLoadingState(false);
     }
   }
+}
+
+// Hide results, destroy the chart and drop app state so stale results never
+// sit next to an edited form (review M7).
+function clearStaleResults() {
+  if (resultsSection) resultsSection.setAttribute('hidden', '');
+  destroyChart();
+  resetAppState();
+  var ghCalcEl = document.getElementById('ghCalculator');
+  if (ghCalcEl) ghCalcEl.hidden = true;
+  var chartsSection = document.getElementById('chartsSection');
+  if (chartsSection) chartsSection.hidden = true;
+  var showChartsBtn = document.getElementById('showChartsBtn');
+  if (showChartsBtn) showChartsBtn.hidden = true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1059,6 +1129,7 @@ function displayResults(results, options, payload) {
   resultsSection.removeAttribute('hidden');
 
   if (chartsSection && !chartsSection.hidden) {
+    renderAgeRangeSelector();
     loadAndRenderChart();
   }
 
@@ -1208,6 +1279,11 @@ var debouncedAutoCalc = debounce(autoCalculate, 800);
 /* ------------------------------------------------------------------ */
 
 function resetForm() {
+  // Invalidate any in-flight calculation and pending auto-calc (review H4).
+  ++activeCalculateRequestId;
+  if (debouncedAutoCalc.cancel) debouncedAutoCalc.cancel();
+  setLoadingState(false);
+
   // Reset the HTML form (clears all inputs)
   if (form) form.reset();
 
@@ -1299,6 +1375,8 @@ function handleKeyboardShortcuts(event) {
 
   // Escape: reset form
   if (event.key === 'Escape') {
+    var escTag = document.activeElement ? document.activeElement.tagName : '';
+    if (escTag === 'INPUT' || escTag === 'SELECT' || escTag === 'TEXTAREA') return;
     event.preventDefault();
     resetForm();
   }
