@@ -19,7 +19,6 @@ spec
 package.json
 package-lock.json
 requirements-dev.txt
-runtime.txt
 README.md
 CLAUDE.md
 Dockerfile

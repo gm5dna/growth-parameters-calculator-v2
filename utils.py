@@ -134,10 +134,3 @@ def format_error_response(message, error_code):
         "error": message,
         "error_code": error_code,
     }
-
-
-def format_success_response(results):
-    return {
-        "success": True,
-        "results": results,
-    }

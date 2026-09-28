@@ -143,8 +143,8 @@ templates/
   index.html            Jinja2 SPA shell
 tests/
   conftest.py           pytest fixtures
-  test_*.py             Backend tests (11 files)
-  js/                   Jest frontend tests (2 files)
+  test_*.py             Backend tests
+  js/                   Jest frontend tests
 ```
 
 ## Growth References
@@ -175,11 +175,8 @@ This is an **experimental** application for **educational and research purposes 
 Production runs under Gunicorn (matching the Dockerfile). Never use `python app.py` in production — it starts Flask's built-in server and can expose the Werkzeug debugger when `FLASK_DEBUG=1`.
 
 ```bash
-# runtime.txt specifies Python version
-python-3.12.8
-
 # Production start command (used by the Docker image)
-gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 2 --timeout 120 --access-logfile - app:app
+gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 4 --timeout 120 --access-logfile - app:app
 ```
 
 ### Environment variables

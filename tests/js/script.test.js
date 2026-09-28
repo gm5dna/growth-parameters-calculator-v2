@@ -332,29 +332,31 @@ describe('calculate request sequencing', () => {
 describe('collapsible sections', () => {
   beforeEach(() => {
     document.body.innerHTML = `
-      <button type="button" class="collapsible-header" id="prevMeasurementsToggle" aria-expanded="false" aria-controls="prevMeasurementsContent">
-        <span class="material-symbols-outlined" aria-hidden="true">add</span>
-        <span>Add Previous Measurement</span>
-      </button>
-      <div id="prevMeasurementsContent" hidden>
+      <details id="prevMeasurementsDetails">
+        <summary>Add Previous Measurement</summary>
+        <button type="button" class="collapsible-close">x</button>
         <table><tbody id="prevMeasurementsBody"></tbody></table>
-      </div>
+      </details>
     `;
+    localStorage.clear();
+    initApp();
   });
 
-  test('opening and closing keeps aria-expanded and icon in sync', () => {
-    const toggle = document.getElementById('prevMeasurementsToggle');
-    const content = document.getElementById('prevMeasurementsContent');
+  const details = () => document.getElementById('prevMeasurementsDetails');
 
-    __testHooks.toggleCollapsibleForTest(toggle, content);
-    expect(content.hidden).toBe(false);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(toggle.querySelector('.material-symbols-outlined').textContent).toBe('remove');
+  test('opening adds a first row; close button closes', async () => {
+    details().open = true;
+    await new Promise((r) => setTimeout(r, 0)); // jsdom fires 'toggle' asynchronously
+    expect(document.querySelectorAll('#prevMeasurementsBody tr')).toHaveLength(1);
 
-    __testHooks.toggleCollapsibleForTest(toggle, content);
-    expect(content.hidden).toBe(true);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(toggle.querySelector('.material-symbols-outlined').textContent).toBe('add');
+    document.querySelector('.collapsible-close').click();
+    expect(details().open).toBe(false);
+  });
+
+  test('resetForm closes the section', () => {
+    details().open = true;
+    resetForm();
+    expect(details().open).toBe(false);
   });
 });
 
@@ -397,7 +399,7 @@ describe('advanced table row labels', () => {
 describe('localDateString (review #4 — local, not UTC)', () => {
   let localDateString;
   beforeAll(async () => {
-    ({ localDateString } = await import('../../static/script.mjs'));
+    ({ localDateString } = await import('../../static/format.mjs'));
   });
 
   test('formats a local date as YYYY-MM-DD with zero padding', () => {

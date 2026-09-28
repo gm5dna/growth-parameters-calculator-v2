@@ -6,7 +6,6 @@ import pytest
 from utils import (
     calculate_mid_parental_height,
     format_error_response,
-    format_success_response,
     get_chart_data,
 )
 from validation import PARENT_HEIGHT_LIMITS, ValidationError
@@ -62,14 +61,6 @@ class TestFormatErrorResponse:
         assert resp["success"] is False
         assert resp["error"] == "Something went wrong"
         assert resp["error_code"] == "ERR_001"
-
-
-class TestFormatSuccessResponse:
-    def test_structure(self):
-        results = {"age_years": 2.45}
-        resp = format_success_response(results)
-        assert resp["success"] is True
-        assert resp["results"] == {"age_years": 2.45}
 
 
 class TestGetChartData:

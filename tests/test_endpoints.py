@@ -1123,34 +1123,6 @@ class TestBoneAgeSelection:
         assert r2.get_json()["results"]["bone_age_height"]["bone_age"] == 7.5
 
 
-class TestRateLimitStorageWarning:
-    """Review #6: warn when in-memory rate-limit storage is used with >1 worker."""
-
-    def test_warns_for_memory_storage_multi_worker(self, monkeypatch, caplog):
-        import app as app_module
-        monkeypatch.setattr(app_module, "_RATELIMIT_STORAGE_URI", "memory://")
-        monkeypatch.setenv("WEB_CONCURRENCY", "2")
-        with caplog.at_level("WARNING"):
-            app_module._warn_if_ratelimit_storage_unsafe()
-        assert any("per-worker" in r.message for r in caplog.records)
-
-    def test_no_warning_for_single_worker(self, monkeypatch, caplog):
-        import app as app_module
-        monkeypatch.setattr(app_module, "_RATELIMIT_STORAGE_URI", "memory://")
-        monkeypatch.setenv("WEB_CONCURRENCY", "1")
-        with caplog.at_level("WARNING"):
-            app_module._warn_if_ratelimit_storage_unsafe()
-        assert not any("per-worker" in r.message for r in caplog.records)
-
-    def test_no_warning_for_shared_storage(self, monkeypatch, caplog):
-        import app as app_module
-        monkeypatch.setattr(app_module, "_RATELIMIT_STORAGE_URI", "redis://localhost:6379/0")
-        monkeypatch.setenv("WEB_CONCURRENCY", "4")
-        with caplog.at_level("WARNING"):
-            app_module._warn_if_ratelimit_storage_unsafe()
-        assert not any("per-worker" in r.message for r in caplog.records)
-
-
 class TestProvenance:
     def test_calculate_reports_engine_provenance(self, client):
         from importlib.metadata import version

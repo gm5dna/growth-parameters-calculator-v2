@@ -149,17 +149,9 @@
 
                 <!-- Previous Measurements (advanced only) -->
                 <fieldset class="form-section advanced-only collapsible-section" id="prevMeasurementsSection">
-                    <button
-                        type="button"
-                        class="collapsible-header"
-                        id="prevMeasurementsToggle"
-                        aria-expanded="false"
-                        aria-controls="prevMeasurementsContent"
-                    >
-                        <span class="material-symbols-outlined" aria-hidden="true">add</span>
-                        <span>Add Previous Measurement</span>
-                    </button>
-                    <div class="collapsible-content" id="prevMeasurementsContent" hidden>
+                    <details id="prevMeasurementsDetails">
+                    <summary class="collapsible-header">Add Previous Measurement</summary>
+                    <div class="collapsible-content">
                         <div class="collapsible-title-row">
                             <legend>Previous Measurements <span class="optional">(Optional)</span></legend>
                             <button type="button" class="btn-icon collapsible-close" aria-label="Close section">
@@ -187,21 +179,14 @@
                             <input type="file" id="csvFileInput" accept=".csv" hidden>
                         </div>
                     </div>
+                    </details>
                 </fieldset>
 
                 <!-- Bone Age Assessments (advanced only) -->
                 <fieldset class="form-section advanced-only collapsible-section" id="boneAgeSection">
-                    <button
-                        type="button"
-                        class="collapsible-header"
-                        id="boneAgeToggle"
-                        aria-expanded="false"
-                        aria-controls="boneAgeContent"
-                    >
-                        <span class="material-symbols-outlined" aria-hidden="true">add</span>
-                        <span>Add Bone Age Assessment</span>
-                    </button>
-                    <div class="collapsible-content" id="boneAgeContent" hidden>
+                    <details id="boneAgeDetails">
+                    <summary class="collapsible-header">Add Bone Age Assessment</summary>
+                    <div class="collapsible-content">
                         <div class="collapsible-title-row">
                             <legend>Bone Age Assessments <span class="optional">(Optional)</span></legend>
                             <button type="button" class="btn-icon collapsible-close" aria-label="Close section">
@@ -220,6 +205,7 @@
                             </button>
                         </div>
                     </div>
+                    </details>
                 </fieldset>
 
                 <!-- Parental Heights (advanced only) -->

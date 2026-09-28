@@ -19,7 +19,8 @@ The main calculation path is shared:
 - `models.py` wraps the mandatory `rcpchgrowth` library for growth reference
   calculations, SDS, centiles, and supported measurement checks.
 - `calculations.py` contains derived calculations such as age, BSA, gestation
-  correction, height velocity, and growth hormone dose helpers.
+  correction (which stops at *corrected* age 1 year for 32-36 weeks, 2 years for
+  <32 weeks), height velocity, and growth hormone dose helpers.
 
 PDF export deliberately recalculates from the submitted measurement inputs and
 ignores any client-supplied result objects.
@@ -56,15 +57,20 @@ Deployment is image-based and triggered by merging to `main`:
 
 - **CI/CD** lives in `.github/workflows/deploy.yml`. On every push/PR to `main`
   it runs ruff, ESLint, the pytest suite (with a `--cov-fail-under=90` gate),
-  Jest, `npm audit`, `pip-audit --strict`, a Docker build, and a `/health`
-  smoke test.
-- On a green run for a push to `main`, the `build-and-push` job builds the
-  production image and publishes it to the GitHub Container Registry (GHCR) as
+  Jest, `npm audit`, `pip-audit --strict`, and a single Docker build that is
+  smoke-tested (`/health`, a `/calculate` check, a vendored asset).
+- On a green run for a push to `main`, that same tested image is pushed to the
+  GitHub Container Registry (GHCR) as
   `ghcr.io/gm5dna/growth-parameters-calculator-v2:latest` (plus a commit-SHA
   tag). A red run publishes nothing, so production stays on the prior image.
 - The container is self-hosted. Watchtower polls GHCR and recreates the
   container when `:latest` changes, so a green merge reaches production with no
   manual step. The public endpoint is served through a Cloudflare tunnel.
+
+Runtime: the container runs as a non-root user under gunicorn with 1 worker x
+4 threads (the default in-memory rate limiter is per-process, so more workers
+need `RATELIMIT_STORAGE_URI=redis://`). Rate limits are keyed on the
+`CF-Connecting-IP` header set by the Cloudflare tunnel, not the proxy address.
 
 Note: because `pip-audit --strict` runs in CI, a newly-disclosed CVE in any
 pinned dependency (including dev-only tooling) will fail the build until the pin

@@ -34,3 +34,8 @@ updates:
     groups:
       docker-minor-patch:
         update-types: ["minor", "patch"]
+    # Python 3.12 is pinned project-wide (CI, pip-compile). Only refresh the
+    # 3.12-slim digest; a 3.x bump is a deliberate runtime upgrade.
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]

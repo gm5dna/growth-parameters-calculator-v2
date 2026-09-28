@@ -33,33 +33,13 @@ import { appState, resetAppState } from './state.mjs';
 
 function debounce(fn, delay) {
   let timer;
-  let lastThis;
-  let lastArgs;
-
-  function clearPending() {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  }
 
   function debounced(...args) {
-    lastThis = this;
-    lastArgs = args;
-    clearPending();
-    timer = setTimeout(function () {
-      timer = null;
-      fn.apply(lastThis, lastArgs);
-      lastThis = undefined;
-      lastArgs = undefined;
-    }, delay);
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
   }
 
-  debounced.cancel = function () {
-    clearPending();
-    lastThis = undefined;
-    lastArgs = undefined;
-  };
+  debounced.cancel = () => clearTimeout(timer);
 
   return debounced;
 }
@@ -513,26 +493,19 @@ function getBoneAgeAssessments() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Collapsible section toggle                                        */
+/*  Collapsible sections (native <details>)                           */
 /* ------------------------------------------------------------------ */
 
-function setCollapsibleState(toggleEl, contentEl, expanded) {
-  if (!toggleEl || !contentEl) return;
-  contentEl.hidden = !expanded;
-  toggleEl.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-  var icon = toggleEl.querySelector('.material-symbols-outlined');
-  if (icon) icon.textContent = expanded ? 'remove' : 'add';
-}
-
-function toggleCollapsible(toggleEl, contentEl) {
-  var shouldExpand = contentEl.hidden;
-  setCollapsibleState(toggleEl, contentEl, shouldExpand);
-  if (shouldExpand) {
-    var tbody = contentEl.querySelector('tbody');
-    if (tbody && tbody.children.length === 0) {
-      addPrevMeasurementRow();
-    }
-  }
+// Add a first row when a section is opened empty; the close button closes it.
+function wireDetails(detailsId, addRow) {
+  var details = document.getElementById(detailsId);
+  if (!details) return;
+  details.addEventListener('toggle', function() {
+    var tbody = details.querySelector('tbody');
+    if (details.open && tbody && tbody.children.length === 0) addRow();
+  });
+  var closeBtn = details.querySelector('.collapsible-close');
+  if (closeBtn) closeBtn.addEventListener('click', function() { details.open = false; });
 }
 
 /* ------------------------------------------------------------------ */
@@ -595,57 +568,27 @@ function gatherFormData() {
 /* ------------------------------------------------------------------ */
 
 function runClientValidation(payload) {
-  let hasError = false;
-
   // Clear all field errors first
   clearFieldErrors();
 
-  const sexErr = validateSex(payload.sex);
-  if (sexErr) {
-    showFieldError('sexError', sexErr);
-    hasError = true;
-  }
+  const val = (id) => document.getElementById(id).value;
+  const errors = [
+    ['sexError', validateSex(payload.sex)],
+    ['birthDateError', validateDate(payload.birth_date)],
+    ['measurementDateError', validateDate(payload.measurement_date)],
+    ['weightError', validateWeight(val('weight'))],
+    ['heightError', validateHeight(val('height'))],
+    ['ofcError', validateOfc(val('ofc'))],
+  ];
 
-  const birthErr = validateDate(payload.birth_date);
-  if (birthErr) {
-    showFieldError('birthDateError', birthErr);
-    hasError = true;
-  }
-
-  const measErr = validateDate(payload.measurement_date);
-  if (measErr) {
-    showFieldError('measurementDateError', measErr);
-    hasError = true;
-  }
-
-  const weightErr = validateWeight(document.getElementById('weight').value);
-  if (weightErr) {
-    showFieldError('weightError', weightErr);
-    hasError = true;
-  }
-
-  const heightErr = validateHeight(document.getElementById('height').value);
-  if (heightErr) {
-    showFieldError('heightError', heightErr);
-    hasError = true;
-  }
-
-  const ofcErr = validateOfc(document.getElementById('ofc').value);
-  if (ofcErr) {
-    showFieldError('ofcError', ofcErr);
-    hasError = true;
-  }
-
-  // Parental height limits come from the server (rcpchgrowth's +/-8 SDS adult
-  // range) via the inputs' min/max attributes.
   if (isAdvancedMode()) {
+    // Parental height limits come from the server (rcpchgrowth's +/-8 SDS adult
+    // range) via the inputs' min/max attributes.
     [['maternalHeight', 'Maternal height'], ['paternalHeight', 'Paternal height']].forEach(function (pair) {
       const input = document.getElementById(pair[0]);
-      if (!input) return;
-      const err = validateNumericRange(input.value, Number(input.min), Number(input.max), pair[1]);
-      if (err) {
-        showFieldError(pair[0] + 'Error', err);
-        hasError = true;
+      if (input) {
+        errors.push([pair[0] + 'Error',
+          validateNumericRange(input.value, Number(input.min), Number(input.max), pair[1])]);
       }
     });
 
@@ -656,25 +599,16 @@ function runClientValidation(payload) {
       (gw !== '' && !Number.isInteger(Number(gw)) ? 'Gestation weeks must be a whole number.' : null);
     const dErr = validateNumericRange(gd, 0, 6, 'Gestation days') ||
       (gd !== '' && !Number.isInteger(Number(gd)) ? 'Gestation days must be a whole number.' : null);
-    const gErr = wErr || dErr || (gd !== '' && gw === '' ? 'Gestation weeks are required when days are given.' : null);
-    if (gErr) {
-      showFieldError('gestationError', gErr);
-      hasError = true;
-    }
+    errors.push(['gestationError',
+      wErr || dErr || (gd !== '' && gw === '' ? 'Gestation weeks are required when days are given.' : null)]);
   }
 
-  const atLeastOneErr = validateAtLeastOneMeasurement(
-    document.getElementById('weight').value,
-    document.getElementById('height').value,
-    document.getElementById('ofc').value
-  );
-  if (atLeastOneErr) {
-    // Show on the first measurement field
-    showFieldError('weightError', atLeastOneErr);
-    hasError = true;
-  }
+  // At-least-one-measurement error is shown on the first measurement field
+  errors.push(['weightError', validateAtLeastOneMeasurement(val('weight'), val('height'), val('ofc'))]);
 
-  if (!hasError) return true;
+  const failed = errors.filter(function (e) { return e[1]; });
+  failed.forEach(function (e) { showFieldError(e[0], e[1]); });
+  if (!failed.length) return true;
   const firstInvalid = document.querySelector('[aria-invalid="true"]');
   if (firstInvalid && firstInvalid.focus) firstInvalid.focus();
   return false;
@@ -1328,16 +1262,14 @@ function resetForm() {
   // Clear previous measurements
   var prevBody = document.getElementById('prevMeasurementsBody');
   if (prevBody) prevBody.innerHTML = '';
-  var prevContent = document.getElementById('prevMeasurementsContent');
-  var prevToggle = document.getElementById('prevMeasurementsToggle');
-  if (prevToggle && prevContent) setCollapsibleState(prevToggle, prevContent, false);
+  var prevDetails = document.getElementById('prevMeasurementsDetails');
+  if (prevDetails) prevDetails.open = false;
 
   // Clear bone age assessments
   var baBody = document.getElementById('boneAgeBody');
   if (baBody) baBody.innerHTML = '';
-  var baContent = document.getElementById('boneAgeContent');
-  var baToggle = document.getElementById('boneAgeToggle');
-  if (baToggle && baContent) setCollapsibleState(baToggle, baContent, false);
+  var baDetails = document.getElementById('boneAgeDetails');
+  if (baDetails) baDetails.open = false;
 
   // Hide chart section
   destroyChart();
@@ -1428,17 +1360,7 @@ export function initApp() {
   var modeToggle = document.getElementById('modeToggle');
   if (modeToggle) modeToggle.addEventListener('change', handleModeToggle);
 
-  // Previous measurements toggle
-  var prevToggle = document.getElementById('prevMeasurementsToggle');
-  var prevContent = document.getElementById('prevMeasurementsContent');
-  if (prevToggle && prevContent) {
-    prevToggle.addEventListener('click', function() { toggleCollapsible(prevToggle, prevContent); });
-    // Close button
-    var closeBtn = prevContent.querySelector('.collapsible-close');
-    if (closeBtn) closeBtn.addEventListener('click', function() {
-      setCollapsibleState(prevToggle, prevContent, false);
-    });
-  }
+  wireDetails('prevMeasurementsDetails', addPrevMeasurementRow);
   // Add another row button
   var addPrevBtn = document.getElementById('addPrevMeasurement');
   if (addPrevBtn) addPrevBtn.addEventListener('click', function() { addPrevMeasurementRow(); });
@@ -1456,23 +1378,7 @@ export function initApp() {
   var exportBtn = document.getElementById('exportCsvBtn');
   if (exportBtn) exportBtn.addEventListener('click', exportCsv);
 
-  // Bone age toggle
-  var baToggle = document.getElementById('boneAgeToggle');
-  var baContent = document.getElementById('boneAgeContent');
-  if (baToggle && baContent) {
-    baToggle.addEventListener('click', function() {
-      var shouldExpand = baContent.hidden;
-      setCollapsibleState(baToggle, baContent, shouldExpand);
-      if (shouldExpand) {
-        var tbody = document.getElementById('boneAgeBody');
-        if (tbody && tbody.children.length === 0) addBoneAgeRow();
-      }
-    });
-    var baCloseBtn = baContent.querySelector('.collapsible-close');
-    if (baCloseBtn) baCloseBtn.addEventListener('click', function() {
-      setCollapsibleState(baToggle, baContent, false);
-    });
-  }
+  wireDetails('boneAgeDetails', addBoneAgeRow);
   var addBaBtn = document.getElementById('addBoneAge');
   if (addBaBtn) addBaBtn.addEventListener('click', function() { addBoneAgeRow(); });
 
@@ -1553,17 +1459,11 @@ export const __testHooks = {
     warningsList = document.getElementById('warningsList');
     displayResults(results, { suppressScroll: true });
   },
-  toggleCollapsibleForTest: toggleCollapsible,
   addPreviousMeasurementRowForTest: addPrevMeasurementRow,
   addBoneAgeRowForTest: addBoneAgeRow,
 };
 
 export {
-  debounce,
-  formatCentile,
-  formatSds,
-  formatCalendarAge,
-  localDateString,
   buildMeasurementSummaryRows,
   buildExportPdfPayload,
   gatherFormData,
@@ -1581,7 +1481,6 @@ export {
   importCsv,
   parsePreviousMeasurementsCsv,
   exportCsv,
-  toggleCollapsible,
   addBoneAgeRow,
   getBoneAgeAssessments,
   updateGhDisplay,

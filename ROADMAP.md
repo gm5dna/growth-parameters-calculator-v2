@@ -19,14 +19,6 @@ paediatric starting dose and its basis (e.g. per kg vs per m²), dose
 adjustment rules, and pen strengths/increments. Sources: Sogroya SmPC, BNF for
 Children, and the local NHS Highland endocrine protocol.
 
-## UX
-
-### Native `<details>` for the collapsible form sections
-Replace the hand-rolled toggles for "Previous measurements" and "Bone age"
-(`setCollapsibleState` / `toggleCollapsible` in `static/script.mjs`) with
-`<details>`/`<summary>`. Changes UI behaviour, so re-check reset and form
-restore, and test in the browser.
-
 ## Operations
 
 - **Uptime monitoring:** an external check on `https://growth.gm5dna.com/health`
