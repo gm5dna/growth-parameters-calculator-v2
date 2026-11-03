@@ -47,7 +47,7 @@ python-dateutil==2.9.0.post0
     #   rcpchgrowth
 rcpchgrowth==4.6.5
     # via -r requirements.in
-reportlab==5.0.1
+reportlab==5.1.0
     # via -r requirements.in
 scipy==1.17.1
     # via rcpchgrowth
