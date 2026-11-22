@@ -37,7 +37,7 @@ ordered-set==4.1.0
     # via flask-limiter
 packaging==26.1
     # via limits
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   -r requirements.in
     #   reportlab
@@ -57,7 +57,7 @@ typing-extensions==4.15.0
     # via
     #   flask-limiter
     #   limits
-werkzeug==3.1.8
+werkzeug==3.1.9
     # via flask
 wrapt==2.1.2
     # via deprecated
